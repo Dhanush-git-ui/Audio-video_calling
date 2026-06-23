@@ -4,7 +4,29 @@ import 'consultation_room.dart';
 import 'clinical_panel.dart';
 
 class ConsultationView extends StatefulWidget {
-  const ConsultationView({super.key});
+  final String url;
+  final String token;
+  final String room;
+  final String apiKey;
+  final String apiSecret;
+  final bool initialVideoOn;
+  final bool initialAudioOn;
+  final String publicUrl;
+  final bool isDoctor;
+  
+  const ConsultationView({
+    super.key,
+    required this.url,
+    required this.token,
+    this.room = '',
+    this.apiKey = '',
+    this.apiSecret = '',
+    this.initialVideoOn = true,
+    this.initialAudioOn = true,
+    this.publicUrl = '',
+    this.isDoctor = false, // Initialize it here
+  });
+
 
   @override
   State<ConsultationView> createState() => _ConsultationViewState();
@@ -19,6 +41,7 @@ class _ConsultationViewState extends State<ConsultationView> {
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
         final screenHeight = constraints.maxHeight;
+        final isNarrow = screenWidth < 900;
 
         // Calculate positions and sizes based on viewMode
         double videoLeft = 16;
@@ -35,29 +58,62 @@ class _ConsultationViewState extends State<ConsultationView> {
         bool isFormPip = false;
 
         if (viewMode == 'split') {
-          videoWidth = (screenWidth * 0.72) - 24;
-          videoHeight = screenHeight - 32;
-          formLeft = (screenWidth * 0.72) + 8;
-          formWidth = (screenWidth * 0.28) - 24;
-          formHeight = screenHeight - 32;
+          if (isNarrow) {
+            // Stack vertically: video on top, form on bottom
+            videoWidth = screenWidth - 32;
+            videoHeight = (screenHeight * 0.38) - 16;
+            videoLeft = 16;
+            videoTop = 16;
+
+            formLeft = 16;
+            formTop = (screenHeight * 0.38) + 12;
+            formWidth = screenWidth - 32;
+            formHeight = (screenHeight * 0.62) - 28;
+          } else {
+            // Side by side split
+            videoWidth = (screenWidth * 0.72) - 24;
+            videoHeight = screenHeight - 32;
+            videoLeft = 16;
+            videoTop = 16;
+
+            formLeft = (screenWidth * 0.72) + 8;
+            formWidth = (screenWidth * 0.28) - 24;
+            formHeight = screenHeight - 32;
+          }
         } else if (viewMode == 'form') {
           formLeft = 16;
           formWidth = screenWidth - 32;
           formHeight = screenHeight - 32;
           
-          videoWidth = 400;
-          videoHeight = 280;
-          videoLeft = screenWidth - videoWidth - 32;
-          videoTop = screenHeight - videoHeight - 32;
+          if (isNarrow) {
+            videoWidth = (screenWidth * 0.45).clamp(140.0, 240.0);
+            videoHeight = videoWidth * 0.75;
+            videoLeft = screenWidth - videoWidth - 16;
+            videoTop = screenHeight - videoHeight - 16;
+          } else {
+            videoWidth = 400;
+            videoHeight = 280;
+            videoLeft = screenWidth - videoWidth - 32;
+            videoTop = screenHeight - videoHeight - 32;
+          }
           isVideoPip = true;
         } else if (viewMode == 'video') {
           videoWidth = screenWidth - 32;
           videoHeight = screenHeight - 32;
+          videoLeft = 16;
+          videoTop = 16;
           
-          formWidth = 240;
-          formHeight = 160;
-          formLeft = screenWidth - formWidth - 32;
-          formTop = screenHeight - formHeight - 32;
+          if (isNarrow) {
+            formWidth = (screenWidth * 0.35).clamp(110.0, 160.0);
+            formHeight = formWidth * 0.68;
+            formLeft = screenWidth - formWidth - 16;
+            formTop = screenHeight - formHeight - 16;
+          } else {
+            formWidth = 240;
+            formHeight = 160;
+            formLeft = screenWidth - formWidth - 32;
+            formTop = screenHeight - formHeight - 32;
+          }
           isFormPip = true;
         }
 
@@ -78,7 +134,19 @@ class _ConsultationViewState extends State<ConsultationView> {
                   boxShadow: isVideoPip ? [const BoxShadow(color: Colors.black54, blurRadius: 20)] : [],
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: ConsultationRoom(isPip: isVideoPip, onExpand: () => setState(() => viewMode = 'video')),
+                child: ConsultationRoom(
+                  url: widget.url,
+                  token: widget.token,
+                  roomName: widget.room,
+                  apiKey: widget.apiKey,
+                  apiSecret: widget.apiSecret,
+                  initialVideoOn: widget.initialVideoOn,
+                  initialAudioOn: widget.initialAudioOn,
+                  publicUrl: widget.publicUrl,
+                  isPip: isVideoPip,
+                  onExpand: () => setState(() => viewMode = 'video'),
+                  isDoctor: widget.isDoctor,
+                ),
               ),
             ),
 
@@ -106,8 +174,8 @@ class _ConsultationViewState extends State<ConsultationView> {
 
             // Toggle Bar (Top Left)
             Positioned(
-              top: 24,
-              left: 24,
+              top: isNarrow ? 12 : 24,
+              left: isNarrow ? 12 : 24,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 decoration: BoxDecoration(
