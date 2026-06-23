@@ -116,7 +116,7 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
 
           // Content
           Expanded(
-            child: activeTabIndex == 0 ? _buildVitalsTab() : Center(child: Text('Under Construction', style: TextStyle(color: Colors.white54))),
+            child: _buildTabContent(),
           ),
         ],
       ),
@@ -183,6 +183,271 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
               );
             }
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabContent() {
+    switch (activeTabIndex) {
+      case 0:
+        return _buildVitalsTab();
+      case 1:
+        return _buildComplaintTab();
+      case 2:
+        return _buildDiagnosisTab();
+      case 3:
+        return _buildMedicationsTab();
+      case 4:
+        return _buildInvestigationTab();
+      case 5:
+        return _buildFollowUpTab();
+      case 6:
+        return _buildInvoiceTab();
+      default:
+        return const Center(child: Text('Data Unavailable', style: TextStyle(color: Colors.white54)));
+    }
+  }
+
+  Widget _buildComplaintTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('CHIEF COMPLAINTS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          _buildComplaintItem('Chest Pain', 'Severe tightness in the left thoracic region, radiation to left shoulder, onset 3 hours ago.'),
+          _buildComplaintItem('Shortness of Breath', 'Dyspnea reported during mild exertion or walking up stairs.'),
+          _buildComplaintItem('Dizziness', 'Mild lightheadedness experienced during episodes of chest tightness.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComplaintItem(String symptom, String desc) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(symptom, style: const TextStyle(color: Colors.pinkAccent, fontSize: 14, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text(desc, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagnosisTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('CLINICAL DIAGNOSIS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          _buildDiagnosisItem('I20.9', 'Angina Pectoris, Unspecified', 'Primary', 'Stable angina pectoris provoked by physical exertion or acute stress.'),
+          _buildDiagnosisItem('I10', 'Essential (Primary) Hypertension', 'Secondary', 'Long-standing blood pressure elevation, currently managed on pharmacotherapy.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagnosisItem(String code, String desc, String type, String notes) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(code, style: const TextStyle(color: Colors.indigoAccent, fontSize: 15, fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: type == 'Primary' ? Colors.redAccent.withOpacity(0.2) : Colors.white10, borderRadius: BorderRadius.circular(4)),
+                child: Text(type, style: TextStyle(color: type == 'Primary' ? Colors.redAccent : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(desc, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(notes, style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.3)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMedicationsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('PRESCRIPTION LOG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          _buildMedicationItem('Aspirin 81 mg', 'Oral Tablet', '1 Tablet Daily (Morning)', 'Take with food.', '30 Days'),
+          _buildMedicationItem('Atorvastatin 20 mg', 'Oral Tablet', '1 Tablet Daily (Night)', 'Avoid grapefruit juice.', '90 Days'),
+          _buildMedicationItem('Nitroglycerin 0.4 mg', 'Sublingual Tablet', '1 Tablet q5m prn', 'For acute chest pain. Max 3 doses.', 'As Needed'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMedicationItem(String name, String route, String freq, String inst, String dur) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(name, style: const TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(dur, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Route: $route  |  Frequency: $freq', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(height: 6),
+          Text('Instructions: $inst', style: const TextStyle(color: Colors.white54, fontSize: 12, fontStyle: FontStyle.italic)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvestigationTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('ORDERED INVESTIGATIONS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          _buildInvestigationItem('12-Lead ECG', 'Cardiology Lab', 'Urgent', 'To evaluate ST-segment transitions during chest pain episodes.'),
+          _buildInvestigationItem('Lipid Profile', 'Biochemistry Lab', 'Routine', 'Fasting lipid panel to assess cardiovascular risk profile.'),
+          _buildInvestigationItem('Serum Troponin I', 'Emergency Lab', 'Stat', 'To rule out myocardial injury / infarction.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvestigationItem(String test, String dept, String priority, String purpose) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(test, style: const TextStyle(color: Colors.orangeAccent, fontSize: 14, fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: priority == 'Stat' ? Colors.redAccent.withOpacity(0.2) : Colors.white10, borderRadius: BorderRadius.circular(4)),
+                child: Text(priority, style: TextStyle(color: priority == 'Stat' ? Colors.redAccent : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Dept: $dept', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(height: 6),
+          Text('Purpose: $purpose', style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.3)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowUpTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('FOLLOW-UP SCHEDULE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today, color: Colors.indigoAccent, size: 18),
+                    SizedBox(width: 10),
+                    Text('Next Visit: 08 Feb 2025, 10:00 AM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text('Instructions:', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
+                SizedBox(height: 6),
+                Text('1. Bring latest ECG printout and blood lipid test reports.\n2. Please log blood pressure measurements twice daily.\n3. Return immediately to ER if chest pain occurs and does not subside after 1 dose of sublingual nitroglycerin.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('BILLING OVERVIEW', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+            child: Column(
+              children: [
+                _buildInvoiceRow('Consultation Fee', '\$120.00'),
+                _buildInvoiceRow('Telemedicine Surcharge', '\$15.00'),
+                _buildInvoiceRow('Digital Charting Surcharge', '\$15.00'),
+                const Divider(color: Colors.white24, height: 24),
+                _buildInvoiceRow('Total Amount', '\$150.00', isTotal: true),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Status', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                      child: const Text('PAID VIA INS', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceRow(String item, String price, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(item, style: TextStyle(color: isTotal ? Colors.white : Colors.white70, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal, fontSize: isTotal ? 15 : 13)),
+          Text(price, style: TextStyle(color: isTotal ? Colors.indigoAccent : Colors.white, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal, fontSize: isTotal ? 16 : 13)),
         ],
       ),
     );
