@@ -12,10 +12,22 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'dart:math';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:open_filex/open_filex.dart';
+import 'dart:ui' as ui;
+import 'package:geolocator/geolocator.dart';
+import 'whiteboard_canvas.dart';
+import 'web_download_stub.dart' if (dart.library.html) 'web_download_web.dart';
+import 'web_screenshot_stub.dart'
+    if (dart.library.html) 'web_screenshot_web.dart';
+import '../services/supabase_storage_service.dart';
+import 'bg_images.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+// dart:js is only available on web — conditional import
+// ignore: avoid_web_libraries_in_flutter
 import 'dart:js' as js;
 import 'dart:js' show allowInterop;
-import 'whiteboard_canvas.dart';
-import '../services/supabase_storage_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_session_provider.dart';
 import '../shared_state.dart';
@@ -63,7 +75,8 @@ class ConsultationRoom extends StatefulWidget {
   State<ConsultationRoom> createState() => _ConsultationRoomState();
 }
 
-class _ConsultationRoomState extends State<ConsultationRoom> {
+class _ConsultationRoomState extends State<ConsultationRoom>
+    with TickerProviderStateMixin, ScreenshotProtectorStateMixin {
   late bool isVideoOn = widget.initialVideoOn;
   late bool isAudioOn = widget.initialAudioOn;
   bool isChatOpen = false;
@@ -97,6 +110,11 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   String? _capturedPhotoType;
   bool _hasCapturedPhoto = false;
 
+
+  // Location Tracking
+  final Map<String, Map<String, dynamic>> _participantLocations = {};
+  final Map<String, String> _customParticipantNames = {};
+  bool _isSharingLocation = false;
 
   // For reassembling incoming file chunks
   final Map<String, List<String?>> _incomingFileChunks = {};
@@ -173,6 +191,11 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
     
     // 2. Listen to data channel messages (real-time chat)
     _listener = _room.createListener();
+    _listener!.on<ParticipantConnectedEvent>((event) {
+      if (_customParticipantNames.isNotEmpty) {
+        _broadcastAllParticipantNames();
+      }
+    });
     _listener!.on<DataReceivedEvent>((event) async {
       final decoded = utf8.decode(event.data);
       try {
@@ -241,6 +264,37 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
             if (guestId == _room.localParticipant?.identity) {
               _exitRoom(message: 'Access denied by host.');
             }
+          }
+          return;
+        }
+
+        // Real-time participant display name / role update synchronization
+        if (event.topic == 'participant_name') {
+          final action = decodedMap['action'] as String?;
+          if (action == 'request_name_sync') {
+            if (_customParticipantNames.isNotEmpty) {
+              _broadcastAllParticipantNames();
+            }
+            return;
+          }
+
+          final targetIdentity = decodedMap['identity'] as String?;
+          final newName = decodedMap['newName'] as String?;
+          final allNamesMap = decodedMap['allNames'] as Map<String, dynamic>?;
+
+          if (mounted) {
+            setState(() {
+              if (targetIdentity != null && newName != null) {
+                _customParticipantNames[targetIdentity] = newName;
+              }
+              if (allNamesMap != null) {
+                allNamesMap.forEach((key, val) {
+                  if (val is String) {
+                    _customParticipantNames[key] = val;
+                  }
+                });
+              }
+            });
           }
           return;
         }
@@ -507,7 +561,72 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   }
 
   void _onRoomChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      // Broadcast updated name state to ensure all room participants are in sync
+      if (_customParticipantNames.isNotEmpty) {
+        _broadcastAllParticipantNames();
+      }
+      // If the doctor joins, trigger the transitions
+      if (!widget.isDoctor &&
+          _room.remoteParticipants.isNotEmpty &&
+          !_doctorJoinedTriggered) {
+        _triggerDoctorJoined();
+      }
+    }
+  }
+
+  void _startWaitingTimer() {
+    _waitingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _secondsWaiting++;
+
+        // Rotate live update messages every 4 seconds
+        if (_secondsWaiting % 4 == 0) {
+          _liveMessageIndex =
+              (_liveMessageIndex + 1) % _liveUpdateMessages.length;
+          _liveUpdateMessage = _liveUpdateMessages[_liveMessageIndex];
+        }
+
+        // Simulate appointment progress
+        // At 15 seconds (representing doctor finishing an appointment):
+        if (_secondsWaiting == 15) {
+          _completedAppointments = 19;
+          _queuePosition = 1;
+          _estimatedWaitMinutes = 3;
+          _currentTimelineStage = 3; // Doctor Joining
+        }
+
+        _isCameraReady = isVideoOn && _localVideoTrack != null;
+        _isMicReady = isAudioOn && _localAudioTrack != null;
+      });
+    });
+  }
+
+  void _triggerDoctorJoined() {
+    _doctorJoinedTriggered = true;
+    _waitingTimer?.cancel();
+
+    setState(() {
+      _showCountdown = true;
+      _countdownSeconds = 3;
+      _currentTimelineStage = 4; // Consultation
+    });
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        if (_countdownSeconds > 1) {
+          _countdownSeconds--;
+        } else {
+          _countdownSeconds = 0;
+          _showCountdown = false;
+          _countdownTimer?.cancel();
+        }
+      });
+    });
+>>>>>>> 78f49e2 (Add screenshot restriction (web_screenshot_stub.dart and web.dart and made changes in consultation_room.dart)
   }
 
   Future<void> _initLocalCamera() async {
@@ -585,7 +704,8 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
     _localAudioTrack?.dispose();
     _room.dispose();
     _chatController.dispose();
-    _ipOverrideController.dispose();
+    _cleanupChatFiles();
+    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -1243,11 +1363,27 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   // Connect to the self-hosted LiveKit server
   Future<void> _connectToLiveKit(String url, String token) async {
     try {
-      await _room.connect(url, token);
+      await _room.connect(
+        url,
+        token,
+        connectOptions: const ConnectOptions(
+          // Subscribe to all tracks as soon as they are published (no manual subscribe needed)
+          autoSubscribe: true,
+          // Faster initial ICE gathering (less candidates to try = quicker connection)
+          rtcConfiguration: RTCConfiguration(
+            iceTransportPolicy: RTCIceTransportPolicy.all,
+          ),
+        ),
+      );
       if (!widget.isGuest) {
         if (_localVideoTrack != null) await _room.localParticipant?.publishVideoTrack(_localVideoTrack!);
         if (_localAudioTrack != null) await _room.localParticipant?.publishAudioTrack(_localAudioTrack!);
       }
+
+      // Automatically request and share location after connecting
+      _shareMyLocation();
+      // Request name/role state sync from existing participants
+      _requestNameSync();
     } catch (e) {
       debugPrint("LiveKit Connect Error: $e");
     }
@@ -1638,15 +1774,23 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   }
 
   Widget _buildParticipantTile(RemoteParticipant participant) {
-    final videoPublication = participant.videoTrackPublications.isNotEmpty
-        ? participant.videoTrackPublications.first
+    final displayName = _customParticipantNames[participant.identity] ??
+        (participant.name.isNotEmpty ? participant.name : participant.identity);
+
+    // Filter specifically for the camera track (not screen-share), and only
+    // use it when it has been subscribed and is not muted.
+    final videoPublication = participant.videoTrackPublications
+        .where((p) => p.source == TrackSource.camera)
+        .firstOrNull;
+    // A track is only renderable when it is subscribed AND not null
+    final videoTrack = (videoPublication?.subscribed ?? false)
+        ? videoPublication?.track as VideoTrack?
         : null;
-    final videoTrack = videoPublication?.track as VideoTrack?;
     final isVideoMuted = videoPublication?.muted ?? true;
 
     final isActiveSpeaker = _activeSpeakerHighlight && 
         (_activeSpeakerIdentity == participant.identity || 
-         _activeSpeakerIdentity.contains(participant.name ?? ''));
+         _activeSpeakerIdentity.contains(participant.name));
 
     return Container(
       decoration: BoxDecoration(
@@ -1664,8 +1808,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
           if (videoTrack != null && !isVideoMuted)
             VideoTrackRenderer(videoTrack)
           else
-            _buildParticipantPlaceholder(participant.identity),
-
+            _buildParticipantPlaceholder(displayName),
           Positioned(
             bottom: 12,
             left: 12,
@@ -1692,16 +1835,59 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                       ),
                       const SizedBox(width: 8),
                       Flexible(
-                        child: Text(
-                          participant.identity,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              displayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (_participantLocations
+                                .containsKey(participant.identity))
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.location_on,
+                                      color: Colors.redAccent, size: 10),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    _participantLocations[
+                                        participant.identity]!['city'],
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       ),
+                      // Role-based name editing: only visible to the Doctor
+                      if (widget.isDoctor) ...[  
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => _showRenameParticipantDialog(participant.identity),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.indigoAccent.withOpacity(0.25),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.edit,
+                              color: Colors.white70,
+                              size: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1760,6 +1946,181 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
             ),
             const SizedBox(height: 12),
             const Icon(Icons.videocam_off, color: Colors.white24, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Shows a dialog (Doctor-only) allowing the Doctor to rename a participant
+  /// to either "Patient" or "Relative" for clearer identification during the call.
+  void _showRenameParticipantDialog(String currentIdentity) {
+    // Guard: only Doctors should ever reach this method.
+    if (!widget.isDoctor) return;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withOpacity(0.08)),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.badge_outlined, color: Colors.indigoAccent, size: 24),
+              SizedBox(width: 10),
+              Text(
+                'Rename Participant',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Set a display label for "$currentIdentity":',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildRenameOption(
+                    dialogContext: dialogContext,
+                    participantIdentity: currentIdentity,
+                    label: 'Patient',
+                    icon: Icons.personal_injury_outlined,
+                    color: Colors.tealAccent,
+                  ),
+                  _buildRenameOption(
+                    dialogContext: dialogContext,
+                    participantIdentity: currentIdentity,
+                    label: 'Relative',
+                    icon: Icons.people_outline,
+                    color: Colors.purpleAccent,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _broadcastAllParticipantNames() {
+    if (_customParticipantNames.isEmpty) return;
+    try {
+      final payload = jsonEncode({
+        'allNames': _customParticipantNames,
+      });
+      _room.localParticipant?.publishData(
+        utf8.encode(payload),
+        reliable: true,
+        topic: 'participant_name',
+      );
+    } catch (e) {
+      debugPrint("Error broadcasting all participant names: $e");
+    }
+  }
+
+  void _updateAndBroadcastParticipantName(
+      String targetIdentity, String newName) {
+    setState(() {
+      _customParticipantNames[targetIdentity] = newName;
+    });
+    try {
+      final payload = jsonEncode({
+        'identity': targetIdentity,
+        'newName': newName,
+        'allNames': _customParticipantNames,
+      });
+      _room.localParticipant?.publishData(
+        utf8.encode(payload),
+        reliable: true,
+        topic: 'participant_name',
+      );
+    } catch (e) {
+      debugPrint("Error publishing participant name update: $e");
+    }
+  }
+
+  void _requestNameSync() {
+    try {
+      final payload = jsonEncode({
+        'action': 'request_name_sync',
+      });
+      _room.localParticipant?.publishData(
+        utf8.encode(payload),
+        reliable: true,
+        topic: 'participant_name',
+      );
+    } catch (e) {
+      debugPrint("Error requesting name sync: $e");
+    }
+  }
+
+  /// Builds an individual rename option button used inside [_showRenameParticipantDialog].
+  Widget _buildRenameOption({
+    required BuildContext dialogContext,
+    required String participantIdentity,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(dialogContext).pop();
+        _updateAndBroadcastParticipantName(participantIdentity, label);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Participant relabeled as "$label".',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              backgroundColor: Colors.indigo.shade700,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.4)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
           ],
         ),
       ),
@@ -2159,10 +2520,12 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final screenWidth = mediaQuery.size.width;
-    final screenHeight = mediaQuery.size.height;
-    final isMobile = screenWidth < 600;
+    return buildWebProtector(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenWidth = constraints.maxWidth;
+          final screenHeight = constraints.maxHeight;
+          final isMobile = screenWidth < 600;
 
     return Container(
       decoration: const BoxDecoration(
@@ -2263,10 +2626,76 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                             ),
                           ),
                   ),
+
+                  // Blur active indicator badge (MediaPipe JS handles the actual bg blur)
+                  if (isBlurActive)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4F46E5).withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4F46E5).withOpacity(0.4),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.blur_on, color: Colors.white, size: 10),
+                            const SizedBox(width: 3),
+                            Text(
+                              'BG Blur',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: widget.isPip ? 7 : 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   Positioned(
                     bottom: 8,
                     left: 8,
-                    child: Text(widget.isGuest ? 'You (Patient)' : 'You (Doctor)', style: TextStyle(fontSize: widget.isPip ? 8 : (isMobile ? 10 : 12), color: Colors.white, fontWeight: FontWeight.bold, shadows: const [Shadow(blurRadius: 2, color: Colors.black)])),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _customParticipantNames[_room.localParticipant?.identity] ??
+                              (widget.isDoctor ? 'You (Doctor)' : (widget.isGuest ? 'You (Patient)' : 'You')),
+                          style: TextStyle(
+                            fontSize: widget.isPip ? 8 : (isMobile ? 10 : 12),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            shadows: const [Shadow(blurRadius: 2, color: Colors.black)],
+                          ),
+                        ),
+                        if (_participantLocations.containsKey(_room.localParticipant?.identity ?? 'Me'))
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.location_on, color: Colors.redAccent, size: widget.isPip ? 6 : (isMobile ? 8 : 10)),
+                              const SizedBox(width: 2),
+                              Text(
+                                _participantLocations[_room.localParticipant?.identity ?? 'Me']!['city'],
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: widget.isPip ? 6 : (isMobile ? 8 : 10),
+                                  shadows: const [Shadow(blurRadius: 2, color: Colors.black)],
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
                   ),
                   if (widget.isPip && widget.onExpand != null)
                     Positioned(
@@ -2540,7 +2969,6 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
               ),
             ),
           ),
-          
           // Chat Overlay (Draggable on Desktop, Fixed bottom panel on Mobile)
           if (isChatOpen)
             isMobile
@@ -2564,6 +2992,9 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                   ),
         ],
       ),
+        );
+      },
+    ),
     );
   }
 
@@ -3150,4 +3581,187 @@ class _ShapeClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => true;
+}
+
+// ---------------------------------------------------------------------------
+// Screenshot Protection Mixin
+// ---------------------------------------------------------------------------
+
+/// A Web-optimized mixin that automatically blurs out clinical data
+/// whenever the browser window loses focus or screenshot shortcuts are used.
+mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
+  bool _isWarningOpen = false;
+  bool _shouldBlurScreen = false;
+  final FocusNode _keyboardFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Prevent focus node from stealing focus or blocking text input fields in dialogs
+    _keyboardFocusNode.canRequestFocus = false;
+    _keyboardFocusNode.skipTraversal = true;
+
+    // Listen for browser window losing focus via Flutter lifecycle observer
+    WidgetsBinding.instance.addObserver(
+      _AppLifecycleObserver(
+        onWindowBlur: () => _toggleBlur(true),
+        onWindowFocus: () => _toggleBlur(false),
+      ),
+    );
+
+    // On Web (Google Chrome), register native HTML window blur, focus, and Page Visibility API listeners.
+    // When Snipping Tool, Win+Shift+S, Alt+Tab, OS screenshot tool, or browser tab switch occurs,
+    // Chrome's DOM window loses focus or document becomes hidden, triggering screen blur immediately.
+    // In-app Flutter dialogs (showDialog) DO NOT fire DOM window blur or visibilitychange, preventing false positives.
+    if (kIsWeb) {
+      try {
+        setupWebScreenshotProtection(
+          onBlur: () => _toggleBlur(true),
+          onFocus: () => _toggleBlur(false),
+        );
+      } catch (e) {
+        debugPrint('Web Screenshot Protection setup error: $e');
+      }
+    }
+  }
+
+  void _toggleBlur(bool blur) {
+    if (!mounted || _shouldBlurScreen == blur) return;
+    setState(() {
+      _shouldBlurScreen = blur;
+    });
+    if (blur) {
+      _showLocalWarningPopup();
+    }
+  }
+
+  void _showLocalWarningPopup() {
+    if (_isWarningOpen || !mounted) return;
+
+    _isWarningOpen = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.lock, color: Colors.red, size: 28),
+              SizedBox(width: 10),
+              Text('Data Protected'),
+            ],
+          ),
+          content: const Text(
+            'Screenshots are strictly prohibited. The viewport has been obscured to protect confidential medical files.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                hideNativeWebOverlay();
+                setState(() {
+                  _isWarningOpen = false;
+                  _shouldBlurScreen = false;
+                });
+              },
+              child: const Text(
+                'Return to Consultation',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Wraps your existing screen inside a keyboard listener and a native visual mask
+  Widget buildWebProtector({required Widget child}) {
+    return KeyboardListener(
+      focusNode: _keyboardFocusNode,
+      onKeyEvent: (KeyEvent event) {
+        if (event is KeyDownEvent) {
+          final isControlPressed = HardwareKeyboard.instance.isControlPressed;
+          final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+          final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+          final isCmdOrCtrl = isControlPressed || isMetaPressed;
+
+          // 1. Detect PrintScreen Key
+          if (event.logicalKey == LogicalKeyboardKey.printScreen) {
+            _toggleBlur(true);
+          }
+          // 2. Windows Snipping Tool: Win + Shift + S or Ctrl + Shift + S
+          else if (isCmdOrCtrl &&
+              isShiftPressed &&
+              event.logicalKey == LogicalKeyboardKey.keyS) {
+            _toggleBlur(true);
+          }
+          // 3. macOS Screenshot shortcuts: Cmd + Shift + 3, Cmd + Shift + 4, Cmd + Shift + 5
+          else if (isCmdOrCtrl &&
+              isShiftPressed &&
+              (event.logicalKey == LogicalKeyboardKey.digit3 ||
+                  event.logicalKey == LogicalKeyboardKey.digit4 ||
+                  event.logicalKey == LogicalKeyboardKey.digit5)) {
+            _toggleBlur(true);
+          }
+          // 4. Detect Ctrl + P or Cmd + P (Browser Printing context)
+          else if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyP) {
+            _toggleBlur(true);
+          }
+        }
+      },
+      child: Stack(
+        children: [
+          child, // Your untouched original screen layout
+          // Pre-rendered security block overlay layer (Always mounted for 0ms latency)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: !_shouldBlurScreen,
+              child: Opacity(
+                opacity: _shouldBlurScreen ? 1.0 : 0.0,
+                child: Container(
+                  color: Colors.black.withOpacity(0.98),
+                  child: const Center(
+                    child: Text(
+                      'SECURITY BLOCK ACTIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Helper class to detect when user leaves the Chrome browser view
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  final VoidCallback onWindowBlur;
+  final VoidCallback onWindowFocus;
+
+  _AppLifecycleObserver({
+    required this.onWindowBlur,
+    required this.onWindowFocus,
+  });
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Isolated: AppLifecycleState.inactive is intentionally excluded so in-app
+    // popups/dialogs/menus inside Chrome do not trigger false security blurs.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      onWindowBlur();
+    } else if (state == AppLifecycleState.resumed) {
+      onWindowFocus();
+    }
+  }
 }
