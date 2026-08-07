@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+.env
+.env.example
+node_modules/
+livekit_1.13.1_windows_amd64/
+livekit_server/
+server/node_modules/
+

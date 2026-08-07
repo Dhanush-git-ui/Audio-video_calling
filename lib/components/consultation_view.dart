@@ -13,6 +13,7 @@ class ConsultationView extends StatefulWidget {
   final bool initialAudioOn;
   final String publicUrl;
   final bool isDoctor;
+  final bool isGuest;
   
   const ConsultationView({
     super.key,
@@ -24,7 +25,8 @@ class ConsultationView extends StatefulWidget {
     this.initialVideoOn = true,
     this.initialAudioOn = true,
     this.publicUrl = '',
-    this.isDoctor = false, // Initialize it here
+    this.isDoctor = false,
+    this.isGuest = false,
   });
 
 
@@ -33,7 +35,15 @@ class ConsultationView extends StatefulWidget {
 }
 
 class _ConsultationViewState extends State<ConsultationView> {
-  String viewMode = 'split'; // 'split', 'form', 'video'
+  String viewMode = 'split';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isGuest) {
+      viewMode = 'video';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +144,7 @@ class _ConsultationViewState extends State<ConsultationView> {
                   boxShadow: isVideoPip ? [const BoxShadow(color: Colors.black54, blurRadius: 20)] : [],
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: ConsultationRoom(
+                 child: ConsultationRoom(
                   url: widget.url,
                   token: widget.token,
                   roomName: widget.room,
@@ -146,6 +156,7 @@ class _ConsultationViewState extends State<ConsultationView> {
                   isPip: isVideoPip,
                   onExpand: () => setState(() => viewMode = 'video'),
                   isDoctor: widget.isDoctor,
+                  isGuest: widget.isGuest,
                 ),
               ),
             ),
@@ -168,7 +179,7 @@ class _ConsultationViewState extends State<ConsultationView> {
                 clipBehavior: Clip.antiAlias,
                 child: isFormPip 
                   ? _buildMinimizedForm() 
-                  : const ClinicalPanel(),
+                  : (widget.isGuest ? _buildGuestClinicalPanelRestricted() : const ClinicalPanel()),
               ),
             ),
 
@@ -240,6 +251,39 @@ class _ConsultationViewState extends State<ConsultationView> {
             ),
           )
         ],
+      ),
+    );
+  }
+
+  Widget _buildGuestClinicalPanelRestricted() {
+    return Container(
+      color: const Color(0xFF0F172A),
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.lock_outline, color: Colors.redAccent, size: 64)
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .scale(end: const Offset(1.1, 1.1), duration: 1200.ms),
+            const SizedBox(height: 24),
+            const Text(
+              'ACCESS RESTRICTED',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Guest view does not have permission to view patient clinical EMR records, prescriptions, or diagnostics.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+            ),
+          ],
+        ),
       ),
     );
   }

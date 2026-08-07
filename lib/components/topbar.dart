@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/user_session_provider.dart';
 
 class TopBar extends StatelessWidget {
   const TopBar({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final sessionProvider = Provider.of<UserSessionProvider>(context);
+    final isOnline = sessionProvider.isOnline;
+    final userName = sessionProvider.userName.isNotEmpty ? sessionProvider.userName : 'Dr. Amanulla Belg';
+    final userRole = sessionProvider.userRole;
+    final initials = userName.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase();
+
     return Container(
       height: 70,
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -98,22 +107,90 @@ class TopBar extends StatelessWidget {
           
           const SizedBox(width: 24),
           
-          // Profile
-          const Row(
-            children: [
-              CircleAvatar(backgroundColor: Colors.indigoAccent, child: Text('DR', style: TextStyle(color: Colors.white))),
-              SizedBox(width: 12),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Dr. Amanulla Belg', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  Text('General Physician', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                ],
+          // Profile Dropdown Menu
+          PopupMenuButton<String>(
+            color: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onSelected: (val) {
+              if (val == 'status') {
+                sessionProvider.setOnlineStatus(!isOnline);
+              } else if (val == 'logout') {
+                sessionProvider.logout();
+                context.go('/login');
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'status',
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: isOnline ? Colors.greenAccent : Colors.redAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      isOnline ? 'Go Offline' : 'Go Online',
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
-              SizedBox(width: 8),
-              Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+              const PopupMenuDivider(height: 1),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.redAccent, size: 16),
+                    SizedBox(width: 10),
+                    Text('Logout', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
             ],
+            child: Row(
+              children: [
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Colors.indigoAccent,
+                      child: Text(
+                        initials.isEmpty ? 'DR' : initials,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: isOnline ? Colors.greenAccent : Colors.redAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF0F172A), width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(userName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(userRole == 'Doctor' ? 'General Physician' : 'Patient', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+              ],
+            ),
           )
         ],
       ),

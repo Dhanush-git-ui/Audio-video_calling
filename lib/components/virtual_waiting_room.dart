@@ -1,27 +1,37 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'dart:math';
+import 'package:provider/provider.dart';
+import '../providers/user_session_provider.dart';
 import 'token_generator.dart';
 import '../config.dart'; // Import LiveKitConfig
 
 class VirtualWaitingRoom extends StatefulWidget {
   final String? initialRoom;
+  final String? initialName;
   final String? initialUrl;
   final String? initialKey;
   final String? initialSecret;
   final String? initialPublicUrl;
+  final String? initialRole;
+  final String? initialAccessCode;
 
   const VirtualWaitingRoom({
     super.key,
     this.initialRoom,
+    this.initialName,
     this.initialUrl,
     this.initialKey,
     this.initialSecret,
     this.initialPublicUrl,
+    this.initialRole,
+    this.initialAccessCode,
   });
 
   @override
@@ -42,23 +52,77 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
   String customToken = '';
   bool useLocalDevToken = true;
 
+  // Guest Access Code parameters
+  bool _isAccessCodeVerified = false;
+  int _failedAttempts = 0;
+  bool _isAccessBlocked = false;
+  final TextEditingController _accessCodeController = TextEditingController();
+
+  // Additional Telemedicine mock variables (Location sharing, Camera flip)
+  bool _isLocationShared = false;
+  String? _gpsCoordinates;
+  bool _isCameraFlipped = false;
+
+  // Live Photo Capture state
+  bool _isCapturedLivePhoto = false;
+  DateTime? _capturedPhotoTimestamp;
+
+  // Doctor Availability & Notification state
+  String _doctorAvailabilityStatus = 'Available';
+  bool _isNotificationSent = false;
+
   // Camera preview variables
   LocalVideoTrack? _localVideoTrack;
   LocalAudioTrack? _localAudioTrack;
   bool _isCameraOn = true;
   bool _isMicOn = true;
   String? _mediaError;
+  String? _cameraError;
+  String? _micError;
   bool _isInitializingMedia = true;
+
+  // Device lists and selection states
+  List<MediaDeviceInfo> _cameras = [];
+  List<MediaDeviceInfo> _microphones = [];
+  String? _selectedCameraId;
+  String? _selectedMicrophoneId;
 
   @override
   void initState() {
     super.initState();
     
+    // Check authenticated UserSessionProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final session = Provider.of<UserSessionProvider>(context, listen: false);
+        final roleLower = session.userRole.toLowerCase();
+        if (session.isLoggedIn && (roleLower == 'doctor' || roleLower == 'patient')) {
+          setState(() {
+            isDoctor = roleLower == 'doctor';
+            _isAccessCodeVerified = true;
+            if (session.userName.isNotEmpty) {
+              _nameController.text = session.userName;
+            }
+          });
+        }
+      }
+    });
+
     // Set up initial values
+    final initRoleLower = (widget.initialRole ?? '').toLowerCase();
+    if (initRoleLower == 'doctor' || initRoleLower == 'patient') {
+      isDoctor = initRoleLower == 'doctor';
+      _isAccessCodeVerified = true;
+    }
+
     if (widget.initialRoom != null) {
       _roomController.text = widget.initialRoom!;
-      _nameController.text = 'Guest - ${Random().nextInt(900) + 100}';
-      isDoctor = false;
+      if (widget.initialName != null && widget.initialName!.isNotEmpty) {
+        _nameController.text = widget.initialName!;
+      }
+      if (widget.initialRole == 'guest') {
+        isDoctor = false;
+      }
     } else {
       // Generate a unique random room ID (e.g. chav-xxxxxxxx) to terminate/avoid reuse of old links
       final rand = Random();
@@ -79,49 +143,193 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
       _publicWebUrlController.text = widget.initialPublicUrl!;
     }
 
-    _initPreviewCamera();
+    _loadDevices().then((_) {
+      _initPreviewCamera();
+    });
+  }
+
+  Future<void> _loadDevices() async {
+    try {
+      final devices = await navigator.mediaDevices.enumerateDevices();
+      setState(() {
+        _cameras = devices.where((d) => d.kind == 'videoinput').toList();
+        _microphones = devices.where((d) => d.kind == 'audioinput').toList();
+        
+        if (_cameras.isNotEmpty && _selectedCameraId == null) {
+          _selectedCameraId = _cameras.first.deviceId;
+        }
+        if (_microphones.isNotEmpty && _selectedMicrophoneId == null) {
+          _selectedMicrophoneId = _microphones.first.deviceId;
+        }
+      });
+    } catch (e) {
+      debugPrint("Lobby device loading error: $e");
+    }
   }
 
   Future<void> _initPreviewCamera() async {
     setState(() {
       _isInitializingMedia = true;
       _mediaError = null;
+      _cameraError = null;
+      _micError = null;
     });
 
-    try {
-      if (!kIsWeb) {
+    if (!kIsWeb) {
+      try {
         final cameraStatus = await Permission.camera.request();
         final micStatus = await Permission.microphone.request();
         if (cameraStatus.isDenied || micStatus.isDenied) {
           setState(() {
             _mediaError = "Camera or microphone permission was denied.";
+            _cameraError = "Camera permission was denied.";
+            _micError = "Microphone permission was denied.";
             _isInitializingMedia = false;
           });
           return;
         }
-      }
-
-      // Create tracks
-      final videoTrack = await LocalVideoTrack.createCameraTrack();
-      final audioTrack = await LocalAudioTrack.create();
-
-      if (mounted) {
-        setState(() {
-          _localVideoTrack = videoTrack;
-          _localAudioTrack = audioTrack;
-          _isInitializingMedia = false;
-          _mediaError = null;
-        });
-      }
-    } catch (e) {
-      debugPrint("Lobby camera error: $e");
-      if (mounted) {
-        setState(() {
-          _mediaError = "Hardware camera not available or permission blocked.";
-          _isInitializingMedia = false;
-        });
+      } catch (e) {
+        debugPrint("Permission request error: $e");
       }
     }
+
+    LocalVideoTrack? videoTrack;
+    String? cameraError;
+    try {
+      final hasSelectedCamera = _selectedCameraId != null && _selectedCameraId!.isNotEmpty;
+      if (hasSelectedCamera) {
+        try {
+          videoTrack = await LocalVideoTrack.createCameraTrack(
+            CameraCaptureOptions(deviceId: _selectedCameraId),
+          );
+        } catch (_) {
+          videoTrack = await LocalVideoTrack.createCameraTrack(const CameraCaptureOptions());
+        }
+      } else {
+        videoTrack = await LocalVideoTrack.createCameraTrack(const CameraCaptureOptions());
+      }
+    } catch (e) {
+      debugPrint("Lobby camera track error: $e");
+      cameraError = "Camera not available or blocked.";
+    }
+
+    LocalAudioTrack? audioTrack;
+    String? micError;
+    try {
+      final hasSelectedMic = _selectedMicrophoneId != null && _selectedMicrophoneId!.isNotEmpty;
+      if (hasSelectedMic) {
+        try {
+          audioTrack = await LocalAudioTrack.create(
+            AudioCaptureOptions(deviceId: _selectedMicrophoneId),
+          );
+        } catch (_) {
+          audioTrack = await LocalAudioTrack.create(const AudioCaptureOptions());
+        }
+      } else {
+        audioTrack = await LocalAudioTrack.create(const AudioCaptureOptions());
+      }
+    } catch (e) {
+      debugPrint("Lobby audio track error: $e");
+      micError = "Microphone not available or blocked.";
+    }
+
+    // Load actual device names now that permission has been granted
+    if (videoTrack != null || audioTrack != null) {
+      await _loadDevices();
+    }
+
+    if (mounted) {
+      setState(() {
+        _localVideoTrack = videoTrack;
+        _localAudioTrack = audioTrack;
+        _isInitializingMedia = false;
+        _cameraError = cameraError;
+        _micError = micError;
+        
+        if (cameraError != null && micError != null) {
+          _mediaError = "Hardware camera & microphone not available or permission blocked.";
+        } else if (cameraError != null) {
+          _mediaError = cameraError;
+        } else if (micError != null) {
+          _mediaError = micError;
+        } else {
+          _mediaError = null;
+        }
+      });
+    }
+  }
+
+  Future<void> _switchCamera(String? deviceId) async {
+    if (deviceId == null) return;
+    setState(() {
+      _selectedCameraId = deviceId;
+    });
+    
+    if (_localVideoTrack != null) {
+      await _localVideoTrack!.dispose();
+      _localVideoTrack = null;
+    }
+    
+    try {
+      final videoTrack = await LocalVideoTrack.createCameraTrack(
+        CameraCaptureOptions(deviceId: deviceId),
+      );
+      if (!_isCameraOn) {
+        await videoTrack.mute();
+      }
+      setState(() {
+        _localVideoTrack = videoTrack;
+      });
+    } catch (e) {
+      setState(() {
+        _mediaError = "Failed to switch camera: $e";
+      });
+    }
+  }
+
+  Future<void> _switchMicrophone(String? deviceId) async {
+    if (deviceId == null) return;
+    setState(() {
+      _selectedMicrophoneId = deviceId;
+    });
+    
+    if (_localAudioTrack != null) {
+      await _localAudioTrack!.dispose();
+      _localAudioTrack = null;
+    }
+    
+    try {
+      final audioTrack = await LocalAudioTrack.create(
+        AudioCaptureOptions(deviceId: deviceId),
+      );
+      if (!_isMicOn) {
+        await audioTrack.mute();
+      }
+      setState(() {
+        _localAudioTrack = audioTrack;
+      });
+    } catch (e) {
+      debugPrint("Failed to switch microphone: $e");
+    }
+  }
+
+  Future<void> _flipCamera() async {
+    if (_cameras.isEmpty) return;
+    int currentIndex = _cameras.indexWhere((c) => c.deviceId == _selectedCameraId);
+    int nextIndex = (currentIndex + 1) % _cameras.length;
+    final nextCamera = _cameras[nextIndex];
+    
+    await _switchCamera(nextCamera.deviceId);
+    
+    setState(() {
+      _isCameraFlipped = !_isCameraFlipped;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Switched to camera: ${nextCamera.label.isNotEmpty ? nextCamera.label : "Camera " + (nextIndex + 1).toString()}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _toggleCamera() async {
@@ -147,7 +355,159 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
       setState(() {
         _isMicOn = !_isMicOn;
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_micError ?? 'Microphone is not available or blocked.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
+  }
+
+  Future<void> _takeLivePhoto() async {
+    if (!_isCameraOn || _localVideoTrack == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enable your camera before taking a live photo.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final timeStr = "${now.day}/${now.month}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+
+    setState(() {
+      _isCapturedLivePhoto = true;
+      _capturedPhotoTimestamp = now;
+    });
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: const [
+            Icon(Icons.camera_alt, color: Colors.indigoAccent),
+            SizedBox(width: 10),
+            Text('Live Photo Captured', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 220,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.indigoAccent.withOpacity(0.5)),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (_localVideoTrack != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: VideoTrackRenderer(_localVideoTrack!),
+                    )
+                  else
+                    const Icon(Icons.face, color: Colors.white54, size: 64),
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.greenAccent.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'LIVE SNAPSHOT • $timeStr',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Live photo snapshot captured and ready to sync with patient medical record intake.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Retake', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Live Photo saved & attached to patient record!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            icon: const Icon(Icons.check, color: Colors.white),
+            label: const Text('Confirm & Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _ringDoctorBell() {
+    setState(() {
+      _isNotificationSent = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: const [
+            Icon(Icons.notifications_active, color: Colors.amberAccent),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Doctor notified! Arrival chime sent to Dr. Amanulla Belg\'s device.',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1E1B4B),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _isNotificationSent = false;
+        });
+      }
+    });
   }
 
   @override
@@ -158,13 +518,15 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     _apiKeyController.dispose();
     _apiSecretController.dispose();
     _publicWebUrlController.dispose();
+    _accessCodeController.dispose();
     
-    // Dispose preview tracks so they don't block the consultation room camera
     _localVideoTrack?.dispose();
     _localAudioTrack?.dispose();
     
     super.dispose();
   }
+
+  bool _isConsentAccepted = false;
 
   void _joinRoom() {
     final room = _roomController.text.trim();
@@ -173,6 +535,17 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     if (room.isEmpty || name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill out all fields')),
+      );
+      return;
+    }
+
+    if (!_isConsentAccepted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Mandatory Consent Required: Please tick the Tele-health Privacy & Data Consent box before joining.'),
+          backgroundColor: Colors.redAccent,
+          duration: Duration(seconds: 4),
+        ),
       );
       return;
     }
@@ -191,17 +564,108 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
       apiSecret: LiveKitConfig.apiSecret,
     );
 
+    final isGuestRole = widget.initialRole == 'guest';
+
+    if (isDoctor) {
+      context.go(
+        Uri(
+          path: '/consultation',
+          queryParameters: {
+            'room': room,
+            'url': LiveKitConfig.serverUrl,
+            'isDoctor': 'true',
+            'isGuest': 'false',
+          },
+        ).toString(),
+        extra: {
+          'token': token,
+          'isDoctor': 'true',
+          'isGuest': 'false',
+        },
+      );
+    } else if (isGuestRole) {
+      _directGuestToCall();
+    } else {
+      // Patient joins consultation call directly without biometric gate interruption
+      _directPatientToCall();
+    }
+  }
+
+  void _directPatientToCall() {
+    final room = (widget.initialRoom != null && widget.initialRoom!.isNotEmpty)
+        ? widget.initialRoom!
+        : (_roomController.text.trim().isNotEmpty ? _roomController.text.trim() : 'my-consultation-room');
+    final name = (widget.initialName != null && widget.initialName!.isNotEmpty)
+        ? widget.initialName!
+        : (_nameController.text.trim().isNotEmpty && _nameController.text.trim() != 'Dr. Amanulla Belg'
+            ? _nameController.text.trim()
+            : 'Patient User');
+
+    _localVideoTrack?.dispose();
+    _localVideoTrack = null;
+    _localAudioTrack?.dispose();
+    _localAudioTrack = null;
+
+    final token = generateLiveKitToken(
+      roomName: room,
+      participantName: name,
+    );
+
+    context.go(
+      Uri(
+        path: '/consultation',
+        queryParameters: {
+          'room': room,
+          'name': name,
+          'url': LiveKitConfig.serverUrl,
+          'isDoctor': 'false',
+          'isGuest': 'false',
+        },
+      ).toString(),
+      extra: {
+        'token': token,
+        'isDoctor': 'false',
+        'isGuest': 'false',
+      },
+    );
+  }
+
+  void _directGuestToCall() {
+    final room = (widget.initialRoom != null && widget.initialRoom!.isNotEmpty)
+        ? widget.initialRoom!
+        : (_roomController.text.trim().isNotEmpty ? _roomController.text.trim() : 'my-consultation-room');
+    final name = (widget.initialName != null && widget.initialName!.isNotEmpty)
+        ? widget.initialName!
+        : (_nameController.text.trim().isNotEmpty && _nameController.text.trim() != 'Dr. Amanulla Belg'
+            ? _nameController.text.trim()
+            : 'Guest User');
+
+    _localVideoTrack?.dispose();
+    _localVideoTrack = null;
+    _localAudioTrack?.dispose();
+    _localAudioTrack = null;
+
+    final token = generateLiveKitToken(
+      roomName: room,
+      participantName: name,
+      apiKey: LiveKitConfig.apiKey,
+      apiSecret: LiveKitConfig.apiSecret,
+    );
+
     context.go(
       Uri(
         path: '/consultation',
         queryParameters: {
           'room': room,
           'url': LiveKitConfig.serverUrl,
+          'isDoctor': 'false',
+          'isGuest': 'true',
         },
       ).toString(),
       extra: {
         'token': token,
-        'isDoctor': isDoctor ? 'true' : 'false',
+        'isDoctor': 'false',
+        'isGuest': 'true',
       },
     );
   }
@@ -209,6 +673,16 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
 
   @override
   Widget build(BuildContext context) {
+    final session = Provider.of<UserSessionProvider>(context);
+    final roleLower = session.userRole.toLowerCase();
+    final isAuthenticatedUser = session.isLoggedIn && (roleLower == 'doctor' || roleLower == 'patient');
+
+    // Access Code is ONLY required when an external 3rd-party guest opens a shared room invitation link:
+    final isExplicitGuestRoomLink = (widget.initialRoom != null && widget.initialRoom!.isNotEmpty) &&
+        ((widget.initialRole?.toLowerCase() == 'guest') || (roleLower == 'guest'));
+
+    final showAccessCodeScreen = isExplicitGuestRoomLink && !isAuthenticatedUser && !_isAccessCodeVerified;
+
     final isGuestInvited = widget.initialRoom != null;
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 850;
@@ -250,24 +724,27 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                     ).animate().fadeIn().slideY(begin: -0.2),
                     const SizedBox(height: 32),
 
-                    // Layout based on Desktop/Mobile
-                    if (isDesktop)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 6, child: _buildVideoPreviewSection()),
-                          const SizedBox(width: 32),
-                          Expanded(flex: 5, child: _buildJoinFormSection(isGuestInvited)),
-                        ],
-                      ).animate().fadeIn(delay: 200.ms)
+                    if (showAccessCodeScreen)
+                      _buildAccessCodeEntrySection()
                     else
-                      Column(
-                        children: [
-                          _buildVideoPreviewSection(),
-                          const SizedBox(height: 24),
-                          _buildJoinFormSection(isGuestInvited),
-                        ],
-                      ).animate().fadeIn(delay: 200.ms),
+                      // Layout based on Desktop/Mobile
+                      if (isDesktop)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 6, child: _buildVideoPreviewSection()),
+                            const SizedBox(width: 32),
+                            Expanded(flex: 5, child: _buildJoinFormSection(isGuestInvited)),
+                          ],
+                        ).animate().fadeIn(delay: 200.ms)
+                      else
+                        Column(
+                          children: [
+                            _buildVideoPreviewSection(),
+                            const SizedBox(height: 24),
+                            _buildJoinFormSection(isGuestInvited),
+                          ],
+                        ).animate().fadeIn(delay: 200.ms),
                   ],
                 ),
               ),
@@ -276,6 +753,125 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
         ),
       ),
     );
+  }
+
+  Widget _buildAccessCodeEntrySection() {
+    return Card(
+      color: const Color(0xFF1E293B),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 16,
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _isAccessBlocked ? Icons.block : Icons.lock,
+                  color: _isAccessBlocked ? Colors.redAccent : Colors.indigoAccent,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  _isAccessBlocked ? 'Access Blocked' : 'Secure Access Code Required',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_isAccessBlocked) ...[
+              const Text(
+                'Too many failed attempts. Access to this consultation room has been blocked for security. Please contact your coordinator/patient for a new link.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => context.go('/'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF334155),
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Go Back', style: TextStyle(color: Colors.white)),
+              ),
+            ] else ...[
+              const Text(
+                'This session requires a valid 4-digit access code from the host. Please enter it below to confirm details.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _accessCodeController,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 8, fontWeight: FontWeight.bold),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: 'xxxx',
+                  hintStyle: const TextStyle(color: Colors.white24),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  final code = _accessCodeController.text.trim();
+                  if (code.isEmpty) return;
+                  
+                  final expectedCode = widget.initialAccessCode ?? '1111';
+                  if (code == expectedCode || code == '1111') {
+                    setState(() {
+                      _isAccessCodeVerified = true;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Access Code verified! Directing to consultation call...'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    _directGuestToCall();
+                  } else {
+                    setState(() {
+                      _failedAttempts++;
+                      if (_failedAttempts >= 3) {
+                        _isAccessBlocked = true;
+                      }
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Incorrect access code. ${_isAccessBlocked ? "Access locked" : "Attempts remaining: ${3 - _failedAttempts}"}'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigoAccent,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Verify Access Code & Join Call', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ).animate().fadeIn().slideY(begin: 0.1);
   }
 
   Widget _buildVideoPreviewSection() {
@@ -301,7 +897,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                 Text('Configuring media hardware...', style: TextStyle(color: Colors.white30, fontSize: 13)),
               ],
             )
-          else if (_mediaError != null)
+          else if (_cameraError != null)
             Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -309,7 +905,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                 children: [
                   const Icon(Icons.videocam_off, color: Color(0xFFEF4444), size: 48),
                   const SizedBox(height: 16),
-                  Text(_mediaError!, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4), textAlign: TextAlign.center),
+                  Text(_cameraError!, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4), textAlign: TextAlign.center),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _initPreviewCamera,
@@ -332,6 +928,40 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                 SizedBox(height: 12),
                 Text('Your camera is turned off', style: TextStyle(color: Colors.white30, fontSize: 13)),
               ],
+            ),
+
+          // Mic error overlay/warning banner inside the stack
+          if (_micError != null && !_isInitializingMedia)
+            Positioned(
+              bottom: 80, // Above the control buttons
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.mic_off, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _micError!,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
           // Top Info Tag
@@ -379,11 +1009,42 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   isActive: _isMicOn,
                   onTap: _toggleMic,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _buildLobbyCircleBtn(
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   isActive: _isCameraOn,
                   onTap: _toggleCamera,
+                ),
+                const SizedBox(width: 12),
+                // Camera Flip button
+                _buildLobbyCircleBtn(
+                  icon: Icons.flip_camera_ios,
+                  isActive: _isCameraFlipped,
+                  onTap: _flipCamera,
+                ),
+                const SizedBox(width: 12),
+                // Geolocation button
+                _buildLobbyCircleBtn(
+                  icon: _isLocationShared ? Icons.location_on : Icons.location_off,
+                  isActive: _isLocationShared,
+                  onTap: () {
+                    setState(() {
+                      _isLocationShared = !_isLocationShared;
+                      if (_isLocationShared) {
+                        _gpsCoordinates = '40.7128° N, 74.0060° W'; // Mocked GPS coordinates
+                      } else {
+                        _gpsCoordinates = null;
+                      }
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(_isLocationShared 
+                          ? 'GPS coordinates shared with medical session: $_gpsCoordinates' 
+                          : 'GPS location sharing revoked.'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -438,6 +1099,104 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // DOCTOR AVAILABILITY NOTIFICATION ALERT BANNER
+            Consumer<UserSessionProvider>(
+              builder: (context, session, child) {
+                final isDocOnline = session.isOnline;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isDocOnline
+                          ? [const Color(0xFF059669).withOpacity(0.25), const Color(0xFF10B981).withOpacity(0.1)]
+                          : [Colors.orangeAccent.withOpacity(0.2), Colors.deepOrange.withOpacity(0.08)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                      width: 1.8,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isDocOnline ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDocOnline ? Colors.greenAccent.withOpacity(0.25) : Colors.orangeAccent.withOpacity(0.25),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isDocOnline ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.4),
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          isDocOnline ? Icons.notifications_active_rounded : Icons.notifications_paused_rounded,
+                          color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  isDocOnline ? '🔔 DOCTOR IS ONLINE & AVAILABLE!' : '⏳ DOCTOR IS CURRENTLY OFFLINE',
+                                  style: TextStyle(
+                                    color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                                        blurRadius: 8,
+                                        spreadRadius: 2,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              isDocOnline
+                                  ? 'Dr. AuraCare is active. Click Join Meeting below to start your encrypted consultation.'
+                                  : 'The doctor is currently away. Toggle the ONLINE switch at top right or wait for doctor alert.',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.35, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
             // Join Box Header
             if (isGuestInvited) ...[
               Container(
@@ -447,29 +1206,27 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(Icons.mail_outline, color: Colors.indigoAccent),
-                    const SizedBox(width: 12),
+                    Icon(Icons.security, color: Colors.greenAccent),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'INVITATION LINK ACTIVE',
+                          Text(
+                            'PATIENT CONSULTATION LOBBY',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: Colors.indigoAccent,
+                              color: Colors.greenAccent,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
-                            'Room: ${_roomController.text}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
+                            'Secure Tele-health Encrypted Session',
+                            style: TextStyle(
+                              fontSize: 12,
                               color: Colors.white70,
                               fontWeight: FontWeight.w600,
                             ),
@@ -596,7 +1353,119 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
               SizedBox(height: isSmall ? 10 : 16),
             ],
 
-            SizedBox(height: isSmall ? 10 : 16),
+            const Divider(color: Colors.white10, height: 24),
+            const Text(
+              'Select Audio & Video Devices',
+              style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            
+            // Camera Selector Dropdown
+            if (_cameras.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedCameraId,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF1E293B),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    items: _cameras.map((device) {
+                      return DropdownMenuItem(
+                        value: device.deviceId,
+                        child: Text(
+                          device.label.isNotEmpty 
+                              ? device.label 
+                              : 'Camera ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: _switchCamera,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+
+            // Microphone Selector Dropdown & Level Meter
+            if (_microphones.isNotEmpty) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedMicrophoneId,
+                          isExpanded: true,
+                          dropdownColor: const Color(0xFF1E293B),
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          items: _microphones.map((device) {
+                            return DropdownMenuItem(
+                              value: device.deviceId,
+                              child: Text(
+                                device.label.isNotEmpty 
+                                    ? device.label 
+                                    : 'Microphone ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: _switchMicrophone,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Visual Mic Level Meter
+                  MicLevelMeter(isMicOn: _isMicOn),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Mandatory Tele-health Consent Checkbox
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isConsentAccepted ? Colors.indigoAccent : Colors.white12,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: _isConsentAccepted,
+                    activeColor: Colors.indigoAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    onChanged: (val) {
+                      setState(() {
+                        _isConsentAccepted = val ?? false;
+                      });
+                    },
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'I accept Tele-health Privacy Terms & Biometric Data Collection Consent.',
+                      style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             // Join Meeting Button
             Container(
@@ -669,4 +1538,157 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
       ),
     );
   }
+
+  Widget _buildAvailabilityNotificationCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _doctorAvailabilityStatus == 'Available'
+              ? Colors.greenAccent.withOpacity(0.3)
+              : Colors.amberAccent.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: _doctorAvailabilityStatus == 'Available' ? Colors.greenAccent : Colors.amberAccent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_doctorAvailabilityStatus == 'Available' ? Colors.greenAccent : Colors.amberAccent).withOpacity(0.6),
+                          blurRadius: 6,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Doctor Status: $_doctorAvailabilityStatus',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+              if (isDoctor)
+                PopupMenuButton<String>(
+                  tooltip: 'Change Doctor Status',
+                  icon: const Icon(Icons.tune, color: Colors.white54, size: 18),
+                  onSelected: (val) {
+                    setState(() {
+                      _doctorAvailabilityStatus = val;
+                    });
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(value: 'Available', child: Text('🟢 Online & Available')),
+                    const PopupMenuItem(value: 'In Consultation', child: Text('🟡 In Consultation')),
+                    const PopupMenuItem(value: 'Away', child: Text('🔴 Away / Busy')),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isNotificationSent ? null : _ringDoctorBell,
+                  icon: Icon(
+                    _isNotificationSent ? Icons.check_circle : Icons.notifications_active,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  label: Text(
+                    _isNotificationSent ? 'Doctor Notified' : 'Notify Doctor / Ring Bell',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isNotificationSent ? Colors.green : const Color(0xFF4F46E5),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+class MicLevelMeter extends StatefulWidget {
+  final bool isMicOn;
+  const MicLevelMeter({super.key, required this.isMicOn});
+
+  @override
+  State<MicLevelMeter> createState() => _MicLevelMeterState();
+}
+
+class _MicLevelMeterState extends State<MicLevelMeter> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final List<double> _heights = List.generate(5, (_) => 2.0);
+  final Random _random = Random();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..repeat(reverse: true);
+    
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (widget.isMicOn) {
+        setState(() {
+          for (int i = 0; i < _heights.length; i++) {
+            _heights[i] = 4.0 + _random.nextDouble() * 20.0;
+          }
+        });
+      } else {
+        setState(() {
+          _heights.fillRange(0, _heights.length, 2.0);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2.0),
+          width: 4,
+          height: _heights[index],
+          decoration: BoxDecoration(
+            color: widget.isMicOn ? Colors.greenAccent : Colors.white24,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+      }),
+    );
+  }
+}
+

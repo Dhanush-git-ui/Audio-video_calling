@@ -43,10 +43,12 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 4,
                           children: [
                             const Text('James Carter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                            const SizedBox(width: 12),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
@@ -66,6 +68,7 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                             _buildTag('Cardiology'),
                             _buildTag('25 Jan 2025, 07:00 AM'),
                             _buildTag('Online Consultation'),
+                            _buildTag('GPS: 40.7128° N, 74.0060° W', color: Colors.greenAccent.withOpacity(0.15), textColor: Colors.greenAccent),
                           ],
                         ),
                       ],
@@ -147,8 +150,8 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
           LayoutBuilder(
             builder: (context, constraints) {
               int crossAxisCount = 1;
-              double childAspectRatio = 3.0;
-              double valueFontSize = 34.0;
+              double childAspectRatio = 2.2;
+              double valueFontSize = 30.0;
               
               if (constraints.maxWidth > 1100) {
                 crossAxisCount = 6;
@@ -159,10 +162,10 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                 childAspectRatio = 1.6;
               } else if (constraints.maxWidth > 500) {
                 crossAxisCount = 2;
-                childAspectRatio = 1.8;
+                childAspectRatio = 1.35;
               } else if (constraints.maxWidth > 300) {
                 crossAxisCount = 2;
-                childAspectRatio = 1.5;
+                childAspectRatio = 1.15;
               }
               
               return GridView.count(
@@ -183,8 +186,84 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
               );
             }
           ),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 24),
+          const Text('AI EMOTION & SENTIMENT ANALYSIS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.pinkAccent.withOpacity(0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.face_retouching_natural, color: Colors.pinkAccent, size: 20),
+                        SizedBox(width: 8),
+                        Text('Emotion Tracker', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.pinkAccent.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('CALM / ANXIOUS', style: TextStyle(color: Colors.pinkAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Patient Tone: Expressing concern about chest discomfort, mild anxiety. Speech pattern is coherent and logical.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                const Text('SENTIMENT ANALYSIS BREAKDOWN', style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                const SizedBox(height: 12),
+                _buildSentimentBar('Normal / Calm Tone', 0.85, Colors.greenAccent),
+                const SizedBox(height: 8),
+                _buildSentimentBar('Mild Anxiety', 0.12, Colors.orangeAccent),
+                const SizedBox(height: 8),
+                _buildSentimentBar('Pain / Discomfort Indicator', 0.03, Colors.redAccent),
+              ],
+            ),
+          ).animate().fadeIn().slideY(begin: 0.1),
         ],
       ),
+    );
+  }
+
+  Widget _buildSentimentBar(String label, double value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            Text('${(value * 100).toStringAsFixed(0)}%', style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: value,
+            backgroundColor: Colors.white10,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 6,
+          ),
+        ),
+      ],
     );
   }
 
@@ -335,7 +414,67 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
           _buildInvestigationItem('12-Lead ECG', 'Cardiology Lab', 'Urgent', 'To evaluate ST-segment transitions during chest pain episodes.'),
           _buildInvestigationItem('Lipid Profile', 'Biochemistry Lab', 'Routine', 'Fasting lipid panel to assess cardiovascular risk profile.'),
           _buildInvestigationItem('Serum Troponin I', 'Emergency Lab', 'Stat', 'To rule out myocardial injury / infarction.'),
+          const SizedBox(height: 24),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 24),
+          const Text('DIGITAL CONSULTATION ATTACHMENTS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2)),
+          const SizedBox(height: 16),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 1.4,
+            children: [
+              _buildDigitalImageCard('Whiteboard Sketch Snapshot', 'Captured on 25 Jan 2025, 07:12 AM', Icons.gesture, Colors.indigoAccent),
+              _buildDigitalImageCard('Symptom Site / Clinical Capture', 'Captured on 25 Jan 2025, 07:15 AM', Icons.camera_alt, Colors.pinkAccent),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDigitalImageCard(String title, String subtitle, IconData icon, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                color: color.withOpacity(0.05),
+                child: Center(
+                  child: Icon(icon, size: 48, color: color.withOpacity(0.3)),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                color: Colors.black.withOpacity(0.7),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -524,7 +663,7 @@ class _VitalCardState extends State<VitalCard> {
                 ),
                 // Card Content
                 Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -534,12 +673,13 @@ class _VitalCardState extends State<VitalCard> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
-                            child: Text(widget.title, style: const TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, height: 1.3)),
+                            child: Text(widget.title, style: const TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, height: 1.2)),
                           ),
-                          Text(widget.unit, style: const TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 4),
+                          Text(widget.unit, style: const TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold)),
                         ],
                       ),
-                      Text(widget.value, style: TextStyle(color: Colors.white, fontSize: widget.valueFontSize, fontWeight: FontWeight.w900, height: 1.0))
+                      Text(widget.value, style: TextStyle(color: Colors.white, fontSize: widget.valueFontSize - 4, fontWeight: FontWeight.w900, height: 1.0))
                         .animate(target: isHovered ? 1 : 0)
                         .shimmer(duration: 1.seconds, color: Colors.white38),
                     ],

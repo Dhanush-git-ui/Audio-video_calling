@@ -31,12 +31,14 @@ class WhiteboardCanvas extends StatefulWidget {
   final Function(WhiteboardPoint) onLocalDraw;
   final VoidCallback onLocalClear;
   final Stream<dynamic>? remoteEventStream;
+  final bool isReadOnly;
 
   const WhiteboardCanvas({
     super.key,
     required this.onLocalDraw,
     required this.onLocalClear,
     this.remoteEventStream,
+    this.isReadOnly = false,
   });
 
   @override
@@ -163,66 +165,78 @@ class _WhiteboardCanvasState extends State<WhiteboardCanvas> {
               borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
               border: Border(bottom: BorderSide(color: Colors.white12)),
             ),
-            child: Row(
-              children: [
-                _buildToolBtn(Icons.edit, WhiteboardTool.pen, isNarrow: isNarrow),
-                SizedBox(width: isNarrow ? 4 : 8),
-                _buildToolBtn(Icons.cleaning_services, WhiteboardTool.eraser, isNarrow: isNarrow),
-                SizedBox(width: isNarrow ? 8 : 16),
-                
-                if (_activeTool == WhiteboardTool.pen) ...[
-                  _buildColorIndicator(Colors.indigoAccent),
-                  _buildColorIndicator(Colors.pinkAccent),
-                  _buildColorIndicator(Colors.greenAccent),
-                  _buildColorIndicator(Colors.amber),
-                  _buildColorIndicator(Colors.white),
-                  SizedBox(width: isNarrow ? 8 : 16),
-                ],
+            child: widget.isReadOnly
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.lock_outline, color: Colors.pinkAccent, size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'View-Only Shared Whiteboard Session (Drawing Restricted)',
+                        style: TextStyle(color: Colors.pinkAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      _buildToolBtn(Icons.edit, WhiteboardTool.pen, isNarrow: isNarrow),
+                      SizedBox(width: isNarrow ? 4 : 8),
+                      _buildToolBtn(Icons.cleaning_services, WhiteboardTool.eraser, isNarrow: isNarrow),
+                      SizedBox(width: isNarrow ? 8 : 16),
+                      
+                      if (_activeTool == WhiteboardTool.pen) ...[
+                        _buildColorIndicator(Colors.indigoAccent),
+                        _buildColorIndicator(Colors.pinkAccent),
+                        _buildColorIndicator(Colors.greenAccent),
+                        _buildColorIndicator(Colors.amber),
+                        _buildColorIndicator(Colors.white),
+                        SizedBox(width: isNarrow ? 8 : 16),
+                      ],
 
-                if (isNarrow) ...[
-                  IconButton(
-                    icon: Icon(
-                      _strokeWidth <= 4.0 
-                          ? Icons.lens_outlined 
-                          : (_strokeWidth <= 9.0 ? Icons.lens : Icons.adjust),
-                      size: _strokeWidth <= 4.0 ? 12 : (_strokeWidth <= 9.0 ? 16 : 20),
-                      color: Colors.white70,
-                    ),
-                    tooltip: 'Cycle Brush Size',
-                    onPressed: () {
-                      setState(() {
-                        if (_strokeWidth <= 4.0) {
-                          _strokeWidth = 8.0;
-                        } else if (_strokeWidth <= 9.0) {
-                          _strokeWidth = 14.0;
-                        } else {
-                          _strokeWidth = 3.0;
-                        }
-                      });
-                    },
-                  ),
-                  const Spacer(),
-                ] else ...[
-                  const Text('Size', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Expanded(
-                    child: Slider(
-                      value: _strokeWidth,
-                      min: 2.0,
-                      max: 15.0,
-                      activeColor: Colors.indigoAccent,
-                      inactiveColor: Colors.white24,
-                      onChanged: (val) => setState(() => _strokeWidth = val),
-                    ),
-                  ),
-                ],
+                      if (isNarrow) ...[
+                        IconButton(
+                          icon: Icon(
+                            _strokeWidth <= 4.0 
+                                ? Icons.lens_outlined 
+                                : (_strokeWidth <= 9.0 ? Icons.lens : Icons.adjust),
+                            size: _strokeWidth <= 4.0 ? 12 : (_strokeWidth <= 9.0 ? 16 : 20),
+                            color: Colors.white70,
+                          ),
+                          tooltip: 'Cycle Brush Size',
+                          onPressed: () {
+                            setState(() {
+                              if (_strokeWidth <= 4.0) {
+                                _strokeWidth = 8.0;
+                              } else if (_strokeWidth <= 9.0) {
+                                _strokeWidth = 14.0;
+                              } else {
+                                _strokeWidth = 3.0;
+                              }
+                            });
+                          },
+                        ),
+                        const Spacer(),
+                      ] else ...[
+                        const Text('Size', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        Expanded(
+                          child: Slider(
+                            value: _strokeWidth,
+                            min: 2.0,
+                            max: 15.0,
+                            activeColor: Colors.indigoAccent,
+                            inactiveColor: Colors.white24,
+                            onChanged: (val) => setState(() => _strokeWidth = val),
+                          ),
+                        ),
+                      ],
 
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  onPressed: _clearCanvas,
-                  tooltip: 'Clear Board',
-                ),
-              ],
-            ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                        onPressed: _clearCanvas,
+                        tooltip: 'Clear Board',
+                      ),
+                    ],
+                  ),
           ),
           
           // Sketch Area
@@ -234,9 +248,9 @@ class _WhiteboardCanvasState extends State<WhiteboardCanvas> {
                   builder: (context, constraints) {
                     final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
                     return GestureDetector(
-                      onPanStart: (details) => _onDrawingAction(details.localPosition, 'start', canvasSize),
-                      onPanUpdate: (details) => _onDrawingAction(details.localPosition, 'draw', canvasSize),
-                      onPanEnd: (details) => _onDrawingAction(Offset.zero, 'end', canvasSize),
+                      onPanStart: widget.isReadOnly ? null : (details) => _onDrawingAction(details.localPosition, 'start', canvasSize),
+                      onPanUpdate: widget.isReadOnly ? null : (details) => _onDrawingAction(details.localPosition, 'draw', canvasSize),
+                      onPanEnd: widget.isReadOnly ? null : (details) => _onDrawingAction(Offset.zero, 'end', canvasSize),
                       child: CustomPaint(
                         painter: WhiteboardPainter(lines: _lines),
                         size: Size.infinite,

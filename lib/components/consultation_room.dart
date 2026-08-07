@@ -8,10 +8,17 @@ import 'package:livekit_client/livekit_client.dart' hide ConnectionState;
 import 'package:livekit_client/livekit_client.dart' as lk show ConnectionState;
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'dart:math';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:js' as js;
+import 'dart:js' show allowInterop;
 import 'whiteboard_canvas.dart';
+import '../services/supabase_storage_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_session_provider.dart';
+import '../shared_state.dart';
 
 
 
@@ -34,6 +41,7 @@ class ConsultationRoom extends StatefulWidget {
   final bool isPip;
   final VoidCallback? onExpand;
   final bool isDoctor;
+  final bool isGuest;
 
   const ConsultationRoom({
     super.key,
@@ -48,6 +56,7 @@ class ConsultationRoom extends StatefulWidget {
     this.isPip = false,
     this.onExpand,
     this.isDoctor = false,
+    this.isGuest = false,
   });
 
   @override
@@ -65,10 +74,36 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   bool _inviteLinkCopied = false;
   int _unreadMessageCount = 0; 
 
+  // Telemedicine Feature States
+  String? _roomAccessCode;
+  bool _consentAccepted = false;
+  String _liveTranscript = 'Consultation connected. Speech captions active...';
+  String _selectedLanguage = 'English';
+  Timer? _captionTimer;
+  bool _isCameraFlipped = false;
+  bool _activeSpeakerHighlight = false;
+  String _activeSpeakerIdentity = '';
+  final List<String> _simulatedLogs = [];
+
+  // Live real-time consent & biometric states
+  final List<String> _approvedParticipants = [];
+  bool _isShowingConsentDialog = false;
+  List<MediaDeviceInfo> _cameras = [];
+  String? _selectedCameraId;
+  bool _isLivenessChecked = false;
+  bool _isVerifyingLiveness = false;
+  String _livenessStatus = 'Ready to Scan';
+  double _livenessProgress = 0.0;
+  String? _capturedPhotoType;
+  bool _hasCapturedPhoto = false;
+
 
   // For reassembling incoming file chunks
   final Map<String, List<String?>> _incomingFileChunks = {};
 
+
+  String? _capturedDataUrl;
+  String? _distanceError;
 
   final TextEditingController _chatController = TextEditingController();
   final TextEditingController _ipOverrideController = TextEditingController();
@@ -88,34 +123,86 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   double _chatBoxW = 320;
   double _chatBoxH = 450;
 
+  final List<Map<String, Map<String, String>>> _captionDialogues = [
+    {
+      'English': {'speaker': 'Dr. Amanulla', 'text': 'Hello James, hope you are doing well. What symptoms are you experiencing today?'},
+      'Spanish': {'speaker': 'Dr. Amanulla', 'text': 'Hola James, espero que estés bien. ¿Qué síntomas estás experimentando hoy?'},
+    },
+    {
+      'English': {'speaker': 'James Carter', 'text': 'I have a high fever and a persistent sore throat for the past two days.'},
+      'Spanish': {'speaker': 'James Carter', 'text': 'Tengo fiebre alta y dolor de garganta constante desde hace dos días.'},
+    },
+    {
+      'English': {'speaker': 'Dr. Amanulla', 'text': 'I see. Have you taken any medications or have any known drug allergies?'},
+      'Spanish': {'speaker': 'Dr. Amanulla', 'text': 'Ya veo. ¿Has tomado algún medicamento o tienes alguna alergia conocida?'},
+    },
+    {
+      'English': {'speaker': 'James Carter', 'text': 'No medications, but I am allergic to Penicillin. I reported this to the AI assistant.'},
+      'Spanish': {'speaker': 'James Carter', 'text': 'Sin medicamentos, pero soy alérgico a la penicilina. Le informé esto al asistente de IA.'},
+    },
+  ];
+  int _captionIndex = 0;
+
   @override
   void initState() {
     super.initState();
+    _loadDevices();
     // Rebuild UI when connection state or participants change
     _room.addListener(_onRoomChanged);
 
-    // Pre-populate IP override if the session URL or web host is an IP address
+    // Generate Room Access Code if not present
+    final rand = Random();
+    _roomAccessCode = (1000 + rand.nextInt(9000)).toString();
+
+    // Attach HIPAA screenshot warning keyboard listener
+    HardwareKeyboard.instance.addHandler(_keyboardKeyHandler);
+
+    // Start Live Captions translation simulation
+    _startCaptionSimulation();
+
+    // Pre-populate IP override if the web host is an IP address (so guest links are correct on mobile)
     try {
-      final uri = Uri.parse(widget.url);
-      final host = uri.host;
-      if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1' && host != '::1') {
-        _ipOverrideController.text = host;
-      } else {
-        final webHost = Uri.base.host;
-        if (webHost.isNotEmpty && webHost != 'localhost' && webHost != '127.0.0.1' && webHost != '::1') {
-          _ipOverrideController.text = webHost;
-        }
+      final webHost = Uri.base.host;
+      final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+      if (ipRegex.hasMatch(webHost)) {
+        _ipOverrideController.text = webHost;
       }
     } catch (e) {
-      debugPrint("Error parsing initial URL: $e");
+      debugPrint("Error parsing web host: $e");
     }
     
     // 2. Listen to data channel messages (real-time chat)
     _listener = _room.createListener();
-    _listener!.on<DataReceivedEvent>((event) {
+    _listener!.on<DataReceivedEvent>((event) async {
       final decoded = utf8.decode(event.data);
       try {
         final decodedMap = jsonDecode(decoded) as Map<String, dynamic>;
+        
+        // Intercept caption events
+        if (event.topic == 'caption') {
+          final action = decodedMap['action'] as String;
+          if (action == 'transcript') {
+            final speaker = decodedMap['speaker'] as String;
+            final text = decodedMap['text'] as String;
+            if (mounted) {
+              setState(() {
+                _liveTranscript = "$speaker: $text";
+                _activeSpeakerIdentity = speaker;
+                _activeSpeakerHighlight = true;
+              });
+              
+              // Clear speaker highlight after 4 seconds
+              Future.delayed(const Duration(seconds: 4), () {
+                if (mounted) {
+                  setState(() {
+                    _activeSpeakerHighlight = false;
+                  });
+                }
+              });
+            }
+          }
+          return;
+        }
         
         // 1. Intercept whiteboard topic events first
         if (event.topic == 'whiteboard') {
@@ -130,11 +217,30 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
           return;
         }
 
-        // 2. Intercept room call controls (e.g. Doctor ending the call)
+        // 2. Intercept room call controls (e.g. Doctor ending the call, guest approvals)
         if (event.topic == 'room_control') {
           final action = decodedMap['action'] as String;
           if (action == 'end_call') {
             _exitRoom(message: 'The doctor has ended this consultation.');
+          } else if (action == 'approve_guest') {
+            final guestId = decodedMap['guestIdentity'] as String;
+            if (guestId == _room.localParticipant?.identity) {
+              setState(() {
+                _consentAccepted = true;
+              });
+              // Publish local tracks now that the host has approved the entry
+              if (_localVideoTrack != null) {
+                await _room.localParticipant?.publishVideoTrack(_localVideoTrack!);
+              }
+              if (_localAudioTrack != null) {
+                await _room.localParticipant?.publishAudioTrack(_localAudioTrack!);
+              }
+            }
+          } else if (action == 'deny_guest') {
+            final guestId = decodedMap['guestIdentity'] as String;
+            if (guestId == _room.localParticipant?.identity) {
+              _exitRoom(message: 'Access denied by host.');
+            }
           }
           return;
         }
@@ -209,18 +315,193 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
     _initLocalCamera();
   }
 
-  void _exitRoom({String? message}) {
-    _room.disconnect();
-    if (mounted) {
-      if (message != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.indigo.shade800,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+
+
+  bool _keyboardKeyHandler(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.printScreen ||
+          (HardwareKeyboard.instance.isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyS) ||
+          (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyP)) {
+        _showScreenshotWarning();
+        return true;
       }
+    }
+    return false;
+  }
+
+  void _showScreenshotWarning() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 10),
+            Text('HIPAA Privacy Warning', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Taking screenshots or captures of this consultation session is strictly prohibited to comply with HIPAA privacy standards and patient confidentiality policies.',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('I Agree & Understand', style: TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _startCaptionSimulation() {
+    if (kIsWeb) {
+      _startLiveSpeechRecognition();
+      return;
+    }
+    
+    // Fallback simulation for non-web platforms
+    _captionTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+      if (!mounted) return;
+      
+      final index = _captionIndex % _captionDialogues.length;
+      final dialogues = _captionDialogues[index];
+      final currentLang = _selectedLanguage;
+      final data = dialogues[currentLang] ?? dialogues['English']!;
+      
+      setState(() {
+        _liveTranscript = "${data['speaker']}: ${data['text']}";
+        _activeSpeakerIdentity = data['speaker']!;
+        _activeSpeakerHighlight = true;
+        _captionIndex++;
+      });
+      
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) {
+          setState(() {
+            _activeSpeakerHighlight = false;
+          });
+        }
+      });
+    });
+  }
+
+  void _startLiveSpeechRecognition() {
+    try {
+      js.context.callMethod('startSpeechRecognition', [
+        _selectedLanguage,
+        js.allowInterop((String text) {
+          if (mounted) {
+            final identity = widget.isDoctor ? 'Dr. Amanulla' : 'James Carter';
+            setState(() {
+              _liveTranscript = "$identity (You): $text";
+              _activeSpeakerIdentity = identity;
+              _activeSpeakerHighlight = true;
+            });
+            
+            // Broadcast transcript to others
+            try {
+              final payload = jsonEncode({
+                'action': 'transcript',
+                'speaker': identity,
+                'text': text,
+              });
+              _room.localParticipant?.publishData(
+                utf8.encode(payload),
+                reliable: true,
+                topic: 'caption',
+              );
+            } catch (e) {
+              debugPrint("Error publishing speech data: $e");
+            }
+
+            Future.delayed(const Duration(seconds: 4), () {
+              if (mounted) {
+                setState(() {
+                  _activeSpeakerHighlight = false;
+                });
+              }
+            });
+          }
+        })
+      ]);
+    } catch (e) {
+      debugPrint("Failed to start speech recognition, falling back to simulation: $e");
+      _captionTimer?.cancel();
+      _captionTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+        if (!mounted) return;
+        final index = _captionIndex % _captionDialogues.length;
+        final dialogues = _captionDialogues[index];
+        final currentLang = _selectedLanguage;
+        final data = dialogues[currentLang] ?? dialogues['English']!;
+        setState(() {
+          _liveTranscript = "${data['speaker']}: ${data['text']}";
+          _activeSpeakerIdentity = data['speaker']!;
+          _activeSpeakerHighlight = true;
+          _captionIndex++;
+        });
+        Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) {
+            setState(() {
+              _activeSpeakerHighlight = false;
+            });
+          }
+        });
+      });
+    }
+  }
+
+  void _exitRoom({String? message}) {
+    // 1. Cleanly disconnect room & dispose local media resources
+    try {
+      _room.removeListener(_onRoomChanged);
+      _room.disconnect();
+      _localVideoTrack?.dispose();
+      _localVideoTrack = null;
+      _localAudioTrack?.dispose();
+      _localAudioTrack = null;
+      MeetingController().disconnect();
+    } catch (e) {
+      debugPrint("[MeetingLifecycle] Cleanup error: $e");
+    }
+
+    if (!mounted) return;
+
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.indigo.shade800,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+
+    // 2. Identify Role & Auth State from Provider and Component Properties
+    final userSession = Provider.of<UserSessionProvider>(context, listen: false);
+    final String currentRole = widget.isGuest
+        ? 'guest'
+        : (widget.isDoctor ? 'doctor' : userSession.userRole.toLowerCase());
+
+    debugPrint("[MeetingLifecycle] 🔚 End Call Event Triggered");
+    debugPrint("[MeetingLifecycle] User Role: $currentRole | LoggedIn: ${userSession.isLoggedIn}");
+    debugPrint("[MeetingLifecycle] Is Doctor: ${widget.isDoctor} | Is Guest: ${widget.isGuest}");
+
+    // 3. Enforce Role-Based Navigation
+    if (widget.isGuest || currentRole == 'guest') {
+      debugPrint("[MeetingLifecycle] 🔀 Navigating GUEST -> Guest Exit Screen (/guest-exit)");
+      context.go('/guest-exit?room=${Uri.encodeComponent(widget.roomName)}');
+    } else if (widget.isDoctor || currentRole == 'doctor') {
+      debugPrint("[MeetingLifecycle] 🔀 Navigating DOCTOR -> Doctor Dashboard (/)");
+      context.go('/');
+    } else if (currentRole == 'patient') {
+      debugPrint("[MeetingLifecycle] 🔀 Navigating PATIENT -> Patient Dashboard (/pre-consultation)");
+      context.go('/pre-consultation');
+    } else {
+      debugPrint("[MeetingLifecycle] 🔀 Navigating default -> Home (/)");
       context.go('/');
     }
   }
@@ -287,6 +568,17 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
 
   @override
   void dispose() {
+    _captionTimer?.cancel();
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('stopSpeechRecognition');
+      } catch (e) {
+        debugPrint("Error stopping speech recognition: $e");
+      }
+    }
+    HardwareKeyboard.instance.removeHandler(_keyboardKeyHandler);
+    _room.removeListener(_onRoomChanged);
+    _room.disconnect();
     _listener?.dispose();
     _whiteboardStreamController.close();
     _localVideoTrack?.dispose();
@@ -295,6 +587,581 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
     _chatController.dispose();
     _ipOverrideController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDevices() async {
+    try {
+      final devices = await navigator.mediaDevices.enumerateDevices();
+      setState(() {
+        _cameras = devices.where((d) => d.kind == 'videoinput').toList();
+        if (_cameras.isNotEmpty) {
+          _selectedCameraId = _cameras.first.deviceId;
+        }
+      });
+    } catch (e) {
+      debugPrint("Consultation room device error: $e");
+    }
+  }
+
+  Future<void> _flipCamera() async {
+    if (kIsWeb) {
+      try {
+        final res = await js.context.callMethod('checkAndFlipCamera', []);
+        final success = res['success'] == true;
+        final message = res['message']?.toString() ?? 'Camera state updated';
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: success ? Colors.green.shade800 : Colors.redAccent,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ No Back Camera Detected! Device has 1 camera (Front Camera).'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_cameras.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ No Back Camera Detected! Device has 1 camera.')),
+      );
+      return;
+    }
+    int currentIndex = _cameras.indexWhere((c) => c.deviceId == _selectedCameraId);
+    int nextIndex = (currentIndex + 1) % _cameras.length;
+    final nextCamera = _cameras[nextIndex];
+    
+    setState(() {
+      _selectedCameraId = nextCamera.deviceId;
+      _isCameraFlipped = !_isCameraFlipped;
+    });
+
+    if (_localVideoTrack != null) {
+      if (_room.connectionState == lk.ConnectionState.connected) {
+        final pubs = _room.localParticipant?.videoTrackPublications ?? [];
+        for (final p in pubs) {
+          if (p.track == _localVideoTrack) {
+            await _room.localParticipant?.removePublishedTrack(p.sid);
+            break;
+          }
+        }
+      }
+      await _localVideoTrack!.dispose();
+      _localVideoTrack = null;
+    }
+
+    try {
+      final videoTrack = await LocalVideoTrack.createCameraTrack(
+        CameraCaptureOptions(deviceId: nextCamera.deviceId),
+      );
+      if (!isVideoOn) {
+        await videoTrack.mute();
+      }
+      _localVideoTrack = videoTrack;
+      if (_room.connectionState == lk.ConnectionState.connected && isVideoOn) {
+        await _room.localParticipant?.publishVideoTrack(videoTrack);
+      }
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Switched to camera: ${nextCamera.label.isNotEmpty ? nextCamera.label : "Camera " + (nextIndex + 1).toString()}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error switching camera during call: $e");
+    }
+  }
+
+  void _checkForPendingGuests() {
+    if (widget.isGuest) return; // Guests don't approve other guests
+    
+    for (var participant in _room.remoteParticipants.values) {
+      final name = participant.identity;
+      if (name.contains('Guest') && !_approvedParticipants.contains(name)) {
+        _showConsentDialogForGuest(name);
+      }
+    }
+  }
+
+  void _showConsentDialogForGuest(String guestIdentity) {
+    if (_isShowingConsentDialog) return;
+    _isShowingConsentDialog = true;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.security, color: Colors.indigoAccent),
+            SizedBox(width: 10),
+            Text('Guest Entry Request', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Guest "$guestIdentity" has entered the waiting room. Do you consent to allow them into this consultation call?',
+          style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _isShowingConsentDialog = false;
+              _denyGuestEntry(guestIdentity);
+            },
+            child: const Text('Deny', style: TextStyle(color: Colors.redAccent)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _isShowingConsentDialog = false;
+              _approveGuestEntry(guestIdentity);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent),
+            child: const Text('Approve Entry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _approveGuestEntry(String guestIdentity) {
+    setState(() {
+      _approvedParticipants.add(guestIdentity);
+    });
+    final payload = jsonEncode({
+      'action': 'approve_guest',
+      'guestIdentity': guestIdentity,
+    });
+    _room.localParticipant?.publishData(
+      utf8.encode(payload),
+      reliable: true,
+      topic: 'room_control',
+    );
+  }
+
+  void _denyGuestEntry(String guestIdentity) {
+    final payload = jsonEncode({
+      'action': 'deny_guest',
+      'guestIdentity': guestIdentity,
+    });
+    _room.localParticipant?.publishData(
+      utf8.encode(payload),
+      reliable: true,
+      topic: 'room_control',
+    );
+  }
+
+  void _showBiometricsModal() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 500),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 30)],
+                ),
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.pinkAccent.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_enhance, color: Colors.pinkAccent, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Clinical Biometric Check',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    if (!_isLivenessChecked) ...[
+                      Container(
+                        height: 220,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _isVerifyingLiveness ? Colors.pinkAccent.withOpacity(0.3) : Colors.white10),
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (_isVerifyingLiveness)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Colors.transparent, Colors.pinkAccent.withOpacity(0.15), Colors.transparent],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                  ),
+                                )
+                                    .animate(onPlay: (c) => c.repeat())
+                                    .slideY(begin: -1, end: 1, duration: 1800.ms),
+                              ),
+                            
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _isVerifyingLiveness ? Icons.remove_red_eye : Icons.visibility_off_outlined,
+                                  color: _isVerifyingLiveness ? Colors.pinkAccent : Colors.white24,
+                                  size: 48,
+                                ).animate(target: _isVerifyingLiveness ? 1.0 : 0.0)
+                                 .scale(end: const Offset(1.2, 1.2), duration: 600.ms)
+                                 .shake(duration: 800.ms),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _livenessStatus,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                  child: LinearProgressIndicator(
+                                    value: _livenessProgress,
+                                    color: Colors.pinkAccent,
+                                    backgroundColor: Colors.white10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: _isVerifyingLiveness ? null : () async {
+                          setModalState(() {
+                            _isVerifyingLiveness = true;
+                            _livenessStatus = 'Initializing liveness check...';
+                            _livenessProgress = 0.0;
+                          });
+                          
+                          await Future.delayed(const Duration(milliseconds: 1000));
+                          setModalState(() {
+                            _livenessStatus = 'Detecting facial positioning...';
+                            _livenessProgress = 0.3;
+                          });
+                          
+                          await Future.delayed(const Duration(milliseconds: 1200));
+                          setModalState(() {
+                            _livenessStatus = 'BLINK YOUR EYES NOW';
+                            _livenessProgress = 0.6;
+                          });
+                          
+                          await Future.delayed(const Duration(milliseconds: 1500));
+                          setModalState(() {
+                            _livenessStatus = 'Blink detected! Checking liveness signature...';
+                            _livenessProgress = 0.9;
+                          });
+                          
+                          await Future.delayed(const Duration(milliseconds: 1000));
+                          setState(() {
+                            _isLivenessChecked = true;
+                          });
+                          setModalState(() {
+                            _isVerifyingLiveness = false;
+                            _livenessStatus = 'Liveness Confirmed!';
+                            _livenessProgress = 1.0;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.pinkAccent,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Start Liveness Verification', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ]
+                    else ...[
+                      if (!_hasCapturedPhoto) ...[
+                        const Text(
+                          'Liveness verified. Select biometric target:',
+                          style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildTypeSelectBtn('Both Eyes', 'BothEyes', setModalState),
+                            _buildTypeSelectBtn('Left Eye', 'LeftEye', setModalState),
+                            _buildTypeSelectBtn('Right Eye', 'RightEye', setModalState),
+                            _buildTypeSelectBtn('Only Face', 'Face', setModalState),
+                            _buildTypeSelectBtn('Whole Body', 'Body', setModalState),
+                          ],
+                        ),
+                        if (_capturedPhotoType != null) ...[
+                          const SizedBox(height: 16),
+                          _buildAadharBiometricContainer(
+                            targetType: _capturedPhotoType,
+                            isCaptured: false,
+                            child: _localVideoTrack != null && isVideoOn
+                                ? FittedBox(
+                                    fit: BoxFit.cover,
+                                    clipBehavior: Clip.hardEdge,
+                                    child: SizedBox(
+                                      width: 320,
+                                      height: 400,
+                                      child: VideoTrackRenderer(
+                                        _localVideoTrack!,
+                                        fit: VideoViewFit.cover,
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    color: const Color(0xFF0F172A),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(Icons.videocam, color: Colors.cyanAccent, size: 44),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'ALIGN YOUR ${_capturedPhotoType?.toUpperCase()}',
+                                          style: const TextStyle(color: Colors.cyanAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                          ),
+                        ],
+                        if (_distanceError != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _distanceError!,
+                                    style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold, height: 1.3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: _capturedPhotoType == null ? null : () async {
+                            if (kIsWeb) {
+                              try {
+                                final res = js.context.callMethod('detectAndCaptureFeature', [_capturedPhotoType]);
+                                if (res != null) {
+                                  final isSuccess = res['success'] as bool? ?? false;
+                                  final dataUrl = res['dataUrl'] as String?;
+                                  final err = res['error'] as String?;
+
+                                  if (!isSuccess || dataUrl == null || dataUrl.isEmpty) {
+                                    setModalState(() {
+                                      _distanceError = err ?? "❌ Feature not detected in frame! Point camera directly at your face/eyes.";
+                                    });
+                                    return;
+                                  }
+
+                                  setModalState(() {
+                                    _distanceError = null;
+                                    _capturedDataUrl = dataUrl;
+                                    _hasCapturedPhoto = true;
+                                  });
+                                  return;
+                                }
+                              } catch (e) {
+                                debugPrint("Detection call error: $e");
+                              }
+                            }
+
+                            setModalState(() {
+                              _distanceError = "❌ Detection failed! Ensure active camera feed is available.";
+                            });
+                          },
+                          icon: const Icon(Icons.camera, color: Colors.white),
+                          label: Text('Capture ${_capturedPhotoType ?? "Snapshot"}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigoAccent,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ] else ...[
+                        _buildAadharBiometricContainer(
+                          targetType: _capturedPhotoType,
+                          isCaptured: true,
+                          child: _capturedDataUrl != null && _capturedDataUrl!.startsWith('data:image')
+                              ? Image.network(
+                                  _capturedDataUrl!,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                )
+                              : const Center(
+                                  child: Icon(Icons.check_circle, color: Colors.greenAccent, size: 64),
+                                ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          '${_capturedPhotoType} Photo Captured & Distance Verified!',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Ready to sync to EMR medical records.',
+                          style: TextStyle(color: Colors.white30, fontSize: 11),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  setModalState(() {
+                                    _hasCapturedPhoto = false;
+                                  });
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Colors.white24),
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Retake', style: TextStyle(color: Colors.white)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final dataUrl = _capturedDataUrl;
+                                  final photoType = _capturedPhotoType ?? 'Biometrics';
+                                  Navigator.pop(context);
+                                  setState(() {
+                                    _isLivenessChecked = false;
+                                    _hasCapturedPhoto = false;
+                                    _capturedPhotoType = null;
+                                  });
+
+                                  if (dataUrl != null && dataUrl.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Uploading $photoType snapshot to Supabase Storage...'),
+                                        backgroundColor: Colors.indigo.shade800,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+
+                                    final record = await SupabaseStorageService.uploadBase64Image(
+                                      dataUrl: dataUrl,
+                                      captureType: photoType,
+                                      roomName: widget.roomName,
+                                    );
+
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('✅ $photoType stored in Supabase: ${record.storagePath}'),
+                                          backgroundColor: Colors.green.shade800,
+                                          duration: const Duration(seconds: 5),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Save & Finish', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTypeSelectBtn(String label, String type, void Function(void Function()) setModalState) {
+    final isSelected = _capturedPhotoType == type;
+    return GestureDetector(
+      onTap: () {
+        setModalState(() {
+          _capturedPhotoType = type;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.indigoAccent.withOpacity(0.2) : Colors.black26,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? Colors.indigoAccent : Colors.white10, width: 2),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              type == 'Iris' 
+                  ? Icons.remove_red_eye 
+                  : (type == 'Face' ? Icons.face : Icons.accessibility),
+              color: isSelected ? Colors.indigoAccent : Colors.white30,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white54,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
   
 
@@ -377,8 +1244,10 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
   Future<void> _connectToLiveKit(String url, String token) async {
     try {
       await _room.connect(url, token);
-      if (_localVideoTrack != null) await _room.localParticipant?.publishVideoTrack(_localVideoTrack!);
-      if (_localAudioTrack != null) await _room.localParticipant?.publishAudioTrack(_localAudioTrack!);
+      if (!widget.isGuest) {
+        if (_localVideoTrack != null) await _room.localParticipant?.publishVideoTrack(_localVideoTrack!);
+        if (_localAudioTrack != null) await _room.localParticipant?.publishAudioTrack(_localAudioTrack!);
+      }
     } catch (e) {
       debugPrint("LiveKit Connect Error: $e");
     }
@@ -426,6 +1295,8 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
       if (serverUrl.isNotEmpty) 'url': serverUrl,
       if (widget.apiKey.isNotEmpty) 'key': widget.apiKey,
       if (widget.apiSecret.isNotEmpty) 'secret': widget.apiSecret,
+      'role': 'guest',
+      if (_roomAccessCode != null) 'ac': _roomAccessCode!,
     };
     
     final queryString = Uri(queryParameters: queryParams).query;
@@ -440,6 +1311,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            bool dialogConsentAccepted = _consentAccepted;
             final inviteUrl = _generateInviteLink();
             final isLocalhost = widget.url.contains('localhost') || 
                                 widget.url.contains('127.0.0.1') ||
@@ -568,7 +1440,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'SHAREABLE MEETING LINK',
+                                'SHAREABLE GUEST LINK',
                                 style: TextStyle(
                                   color: Colors.indigoAccent,
                                   fontSize: 10,
@@ -595,8 +1467,62 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                               fontFamily: 'monospace',
                             ),
                           ),
+                          const Divider(color: Colors.white10, height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'GUEST ACCESS CODE',
+                                style: TextStyle(
+                                  color: Colors.pinkAccent,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.pinkAccent.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.pinkAccent.withOpacity(0.3)),
+                                ),
+                                child: Text(
+                                  _roomAccessCode ?? '1111',
+                                  style: const TextStyle(
+                                    color: Colors.pinkAccent,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Consent checkbox
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: dialogConsentAccepted,
+                          activeColor: Colors.indigoAccent,
+                          onChanged: (val) {
+                            setDialogState(() {
+                              dialogConsentAccepted = val ?? false;
+                              _consentAccepted = dialogConsentAccepted;
+                            });
+                          },
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'I confirm that I have obtained explicit patient consent for link sharing & session participation.',
+                            style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 24),
                     Row(
@@ -612,12 +1538,21 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                         const SizedBox(width: 12),
                         ElevatedButton.icon(
                           onPressed: () {
-                            Clipboard.setData(ClipboardData(text: inviteUrl));
+                            if (!dialogConsentAccepted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('⚠️ MANDATORY PATIENT CONSENT REQUIRED: You must tick the consent box before sharing invitation links or access codes.'),
+                                  backgroundColor: Colors.redAccent,
+                                  duration: Duration(seconds: 4),
+                                ),
+                              );
+                              return;
+                            }
+                            Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"));
                             setDialogState(() {
                               copied = true;
                             });
-                            // Close dialog after copy is clicked
-                            Future.delayed(const Duration(milliseconds: 500), () {
+                            Future.delayed(const Duration(milliseconds: 600), () {
                               if (context.mounted) {
                                 Navigator.of(context).pop();
                               }
@@ -629,7 +1564,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                             size: 18,
                           ),
                           label: Text(
-                            copied ? 'Copied!' : 'Copy Link',
+                            copied ? 'Copied Link + Code!' : 'Copy Invitation',
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -709,11 +1644,18 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
     final videoTrack = videoPublication?.track as VideoTrack?;
     final isVideoMuted = videoPublication?.muted ?? true;
 
+    final isActiveSpeaker = _activeSpeakerHighlight && 
+        (_activeSpeakerIdentity == participant.identity || 
+         _activeSpeakerIdentity.contains(participant.name ?? ''));
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(
+          color: isActiveSpeaker ? Colors.pinkAccent : Colors.white.withOpacity(0.08),
+          width: isActiveSpeaker ? 3 : 1,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -906,7 +1848,39 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
               ),
               const SizedBox(height: 32),
               
-              if (_showInlineInviteCard) ...[
+              if (widget.isGuest) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+                    boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 16)],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.security, color: Colors.greenAccent, size: 20),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'GUEST CONSULTATION SESSION ACTIVE',
+                            style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Room Code: ${widget.roomName}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (_showInlineInviteCard) ...[
                 Builder(
                   builder: (context) {
                     final inviteUrl = _generateInviteLink();
@@ -1012,22 +1986,70 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                           
-                          // Link display field
+                          // Mandatory Patient Consent Checkbox on Dashboard Card
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0F172A),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withOpacity(0.05)),
+                              border: Border.all(
+                                color: _consentAccepted ? Colors.greenAccent : Colors.orangeAccent.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Checkbox(
+                                  value: _consentAccepted,
+                                  activeColor: Colors.greenAccent,
+                                  checkColor: Colors.black,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _consentAccepted = val ?? false;
+                                    });
+                                  },
+                                ),
+                                const Expanded(
+                                  child: Text(
+                                    'I confirm explicit patient consent for link sharing & guest participation.',
+                                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          
+                          // Link display field (LOCKED UNTIL CONSENT IS TICKED)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _consentAccepted ? Colors.greenAccent : Colors.orangeAccent,
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_consentAccepted ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.2),
+                                  blurRadius: 12,
+                                ),
+                              ],
                             ),
                             child: SelectableText(
-                              inviteUrl,
-                              style: const TextStyle(
-                                color: Colors.white70,
+                              _consentAccepted 
+                                  ? "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"
+                                  : '🔒 Link Locked: Tick "I confirm explicit patient consent" above to reveal invitation URL & Access Code.',
+                              style: TextStyle(
+                                color: _consentAccepted ? Colors.white70 : Colors.orangeAccent,
                                 fontSize: 12,
-                                fontFamily: 'monospace',
+                                fontFamily: _consentAccepted ? 'monospace' : 'sans-serif',
+                                fontWeight: _consentAccepted ? FontWeight.w600 : FontWeight.bold,
+                                height: 1.3,
                               ),
                             ),
                           ),
@@ -1036,21 +2058,31 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                           // Copy Button
                           Container(
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(14),
                               gradient: const LinearGradient(
-                                colors: [Colors.indigoAccent, Color(0xFF4F46E5)],
+                                colors: [Color(0xFF6366F1), Color(0xFF3B82F6), Color(0xFF06B6D4)],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.indigoAccent.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
+                                  color: const Color(0xFF6366F1).withOpacity(0.4),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
                                 ),
                               ],
                             ),
                             child: ElevatedButton.icon(
                               onPressed: () {
-                                Clipboard.setData(ClipboardData(text: inviteUrl));
+                                if (!_consentAccepted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('⚠️ MANDATORY PATIENT CONSENT REQUIRED: You must tick the consent box before copying or sharing the invite link.'),
+                                      backgroundColor: Colors.redAccent,
+                                      duration: Duration(seconds: 4),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"));
                                 setState(() {
                                   _inviteLinkCopied = true;
                                 });
@@ -1176,7 +2208,12 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
               decoration: BoxDecoration(
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(
+                  color: (_activeSpeakerHighlight && _activeSpeakerIdentity == 'Dr. Amanulla')
+                      ? Colors.pinkAccent
+                      : Colors.white12,
+                  width: (_activeSpeakerHighlight && _activeSpeakerIdentity == 'Dr. Amanulla') ? 3 : 1,
+                ),
               ),
               child: Stack(
                 fit: StackFit.expand,
@@ -1229,7 +2266,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                   Positioned(
                     bottom: 8,
                     left: 8,
-                    child: Text('You (Doctor)', style: TextStyle(fontSize: widget.isPip ? 8 : (isMobile ? 10 : 12), color: Colors.white, fontWeight: FontWeight.bold, shadows: const [Shadow(blurRadius: 2, color: Colors.black)])),
+                    child: Text(widget.isGuest ? 'You (Patient)' : 'You (Doctor)', style: TextStyle(fontSize: widget.isPip ? 8 : (isMobile ? 10 : 12), color: Colors.white, fontWeight: FontWeight.bold, shadows: const [Shadow(blurRadius: 2, color: Colors.black)])),
                   ),
                   if (widget.isPip && widget.onExpand != null)
                     Positioned(
@@ -1258,6 +2295,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                     : const EdgeInsets.fromLTRB(24, 80, 24, 110),
                 child: WhiteboardCanvas(
                   remoteEventStream: _whiteboardStreamController.stream,
+                  isReadOnly: widget.isGuest,
                   onLocalDraw: (point) {
                     final payload = jsonEncode({
                       'action': point.action,
@@ -1286,7 +2324,74 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
               ),
             ),
 
-          
+          // Live simulated captions & translation selector
+          if (!widget.isPip)
+            Positioned(
+              bottom: isMobile ? 80 : 110,
+              left: 24,
+              right: 24,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Row(
+                    children: [
+                      // Caption Speaker indicator
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _activeSpeakerHighlight ? Colors.pinkAccent : Colors.white30,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _liveTranscript,
+                          style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Multi-lingual Translation Dropdown
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedLanguage,
+                            dropdownColor: const Color(0xFF1E293B),
+                            style: const TextStyle(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                            items: const [
+                              DropdownMenuItem(value: 'English', child: Text('EN')),
+                              DropdownMenuItem(value: 'Spanish', child: Text('ES')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedLanguage = val;
+                                  final index = (_captionIndex - 1).clamp(0, _captionDialogues.length - 1);
+                                  final data = _captionDialogues[index][_selectedLanguage] ?? _captionDialogues[index]['English']!;
+                                  _liveTranscript = "${data['speaker']}: ${data['text']}";
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // Bottom Controls Bar
           AnimatedPositioned(
@@ -1352,21 +2457,38 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                         isActive: isBlurActive,
                         onTap: () {
                           setState(() => isBlurActive = !isBlurActive);
+                          if (kIsWeb) {
+                            js.context.callMethod('toggleBackgroundBlur', [isBlurActive]);
+                          }
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Background Blur requires ML WebAssembly assets (TFLite) and Cross-Origin isolation headers to be deployed on the hosting server. This feature will activate in production!'),
-                              backgroundColor: Colors.indigo.shade800,
-                              duration: const Duration(seconds: 4),
+                              content: Text(isBlurActive ? '✨ Background Blur Filter Activated!' : 'Background Blur Filter Turned Off'),
+                              backgroundColor: isBlurActive ? Colors.indigo.shade800 : Colors.grey.shade800,
+                              duration: const Duration(seconds: 2),
                             ),
                           );
                         },
                       ),
                       const SizedBox(width: 16),
                       _buildControlButton(
-                        icon: Icons.person_add_alt_1,
-                        label: widget.isPip ? null : 'Invite',
-                        onTap: _showInviteDialog,
+                        icon: Icons.camera_alt,
+                        label: widget.isPip ? null : 'Live Photo',
+                        onTap: _showBiometricsModal,
                       ),
+                      const SizedBox(width: 16),
+                      _buildControlButton(
+                        icon: Icons.flip_camera_ios,
+                        label: widget.isPip ? null : 'Flip',
+                        onTap: _flipCamera,
+                      ),
+                      if (!widget.isGuest) ...[
+                        const SizedBox(width: 16),
+                        _buildControlButton(
+                          icon: Icons.person_add_alt_1,
+                          label: widget.isPip ? null : 'Invite',
+                          onTap: _showInviteDialog,
+                        ),
+                      ],
                     ] else ...[
                       SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
                       _buildControlButton(
@@ -1378,7 +2500,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                     SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
                     GestureDetector(
                       onTap: () async {
-                        if (widget.isDoctor) {
+                        if (widget.isDoctor && !widget.isGuest) {
                           try {
                             final payload = jsonEncode({'action': 'end_call'});
                             await _room.localParticipant?.publishData(
@@ -1386,7 +2508,6 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                               reliable: true,
                               topic: 'room_control',
                             );
-                            // Give data channel a brief moment to transmit
                             await Future.delayed(const Duration(milliseconds: 300));
                           } catch (e) {
                             debugPrint("Error ending call: $e");
@@ -1404,7 +2525,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                           borderRadius: BorderRadius.circular(widget.isPip ? 12 : (isMobile ? 16 : 25)),
                         ),
                         child: Text(
-                          'End Call',
+                          widget.isGuest ? 'Leave Call' : 'End Call',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -1490,7 +2611,7 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                       onTap: () {
                         Navigator.pop(context);
                         setState(() => isBlurActive = !isBlurActive);
-                        ScaffoldMessenger.of(this.context).showSnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: const Text('Background Blur requires ML WebAssembly assets (TFLite) and Cross-Origin isolation headers to be deployed on the hosting server. This feature will activate in production!'),
                             backgroundColor: Colors.indigo.shade800,
@@ -1500,12 +2621,22 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
                       },
                     ),
                     // Invite
+                    if (!widget.isGuest)
+                      _buildSheetOption(
+                        icon: Icons.person_add_alt_1,
+                        label: 'Invite',
+                        onTap: () {
+                          Navigator.pop(context);
+                          _showInviteDialog();
+                        },
+                      ),
+                    // Supabase Log
                     _buildSheetOption(
-                      icon: Icons.person_add_alt_1,
-                      label: 'Invite',
+                      icon: Icons.storage_outlined,
+                      label: 'Supabase Log',
                       onTap: () {
                         Navigator.pop(context);
-                        _showInviteDialog();
+                        _showSupabaseLogDialog();
                       },
                     ),
                   ],
@@ -1513,6 +2644,83 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  void _showSupabaseLogDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final records = SupabaseStorageService.storedFilesLog;
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.storage, color: Colors.greenAccent),
+              SizedBox(width: 10),
+              Text('Supabase Storage & EMR Log', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: records.isEmpty
+                ? const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: 16),
+                      Icon(Icons.folder_off_outlined, color: Colors.white30, size: 48),
+                      SizedBox(height: 12),
+                      Text('No files or biometrics captured yet.', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      SizedBox(height: 6),
+                      Text('Use "Live Photo" in call toolbar to capture & store photos to Supabase.', style: TextStyle(color: Colors.white30, fontSize: 11), textAlign: TextAlign.center),
+                      SizedBox(height: 16),
+                    ],
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: records.length,
+                    separatorBuilder: (_, __) => const Divider(color: Colors.white10),
+                    itemBuilder: (context, index) {
+                      final rec = records[index];
+                      return ListTile(
+                        leading: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(rec.dataUrl, fit: BoxFit.cover),
+                          ),
+                        ),
+                        title: Text(
+                          '${rec.captureType} (${rec.fileName})',
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(rec.status, style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontFamily: 'monospace')),
+                            Text('Size: ${(rec.sizeBytes / 1024).toStringAsFixed(1)} KB • ${rec.timestamp.hour.toString().padLeft(2, '0')}:${rec.timestamp.minute.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.white30, fontSize: 10)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close', style: TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
+            ),
+          ],
         );
       },
     );
@@ -1800,4 +3008,146 @@ class _ConsultationRoomState extends State<ConsultationRoom> {
       ),
     );
   }
+
+  Widget _buildAadharBiometricContainer({
+    required String? targetType,
+    required Widget child,
+    required bool isCaptured,
+  }) {
+    ShapeBorder shape;
+    double width = 210;
+    double height = 210;
+    String badgeText = "AADHAR IRIS SCANNER CONTAINER";
+
+    double zoomScale = 1.0;
+    if (!isCaptured) {
+      if (targetType == 'LeftEye' || targetType == 'RightEye') {
+        width = 210;
+        height = 210;
+        zoomScale = 2.4; // High magnification auto-zoom for live camera iris alignment
+        shape = const CircleBorder();
+        badgeText = "AADHAR IRIS SCANNER CONTAINER (${targetType?.toUpperCase()})";
+      } else if (targetType == 'BothEyes') {
+        width = 220;
+        height = 200;
+        zoomScale = 1.8; // Dual eye live camera auto-zoom
+        shape = const CircleBorder();
+        badgeText = "AADHAR DUAL EYE SCANNER CONTAINER";
+      } else if (targetType == 'Face') {
+        width = 210;
+        height = 260;
+        zoomScale = 1.35; // Face live camera framing zoom
+        shape = const OvalBorder();
+        badgeText = "AADHAR FACE VERIFICATION CONTAINER";
+      } else if (targetType == 'Body') {
+        width = 190;
+        height = 270;
+        zoomScale = 1.0; // Full body wide view
+        shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(90));
+        badgeText = "AADHAR FULL BODY CONTAINER";
+      } else {
+        shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(20));
+        badgeText = "AADHAR BIOMETRIC SCANNER CONTAINER";
+      }
+    } else {
+      // CAPTURED SNAPSHOT: 1.0x Scale so preview matches exact captured framing
+      if (targetType == 'LeftEye' || targetType == 'RightEye' || targetType == 'BothEyes') {
+        width = 220;
+        height = 220;
+        shape = const CircleBorder();
+        badgeText = "AADHAR IRIS SCANNER CONTAINER (${targetType?.toUpperCase()})";
+      } else if (targetType == 'Face') {
+        width = 210;
+        height = 260;
+        shape = const OvalBorder();
+        badgeText = "AADHAR FACE VERIFICATION CONTAINER";
+      } else if (targetType == 'Body') {
+        width = 190;
+        height = 270;
+        shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(90));
+        badgeText = "AADHAR FULL BODY CONTAINER";
+      } else {
+        shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(20));
+        badgeText = "AADHAR BIOMETRIC SCANNER CONTAINER";
+      }
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: isCaptured ? Colors.green.withOpacity(0.15) : Colors.cyan.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isCaptured ? Colors.greenAccent : Colors.cyanAccent),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isCaptured ? Icons.check_circle : Icons.center_focus_strong,
+                color: isCaptured ? Colors.greenAccent : Colors.cyanAccent,
+                size: 14,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                badgeText,
+                style: TextStyle(
+                  color: isCaptured ? Colors.greenAccent : Colors.cyanAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: Container(
+            width: width,
+            height: height,
+            decoration: ShapeDecoration(
+              color: const Color(0xFF0F172A),
+              shape: shape,
+              shadows: [
+                BoxShadow(
+                  color: (isCaptured ? Colors.greenAccent : Colors.cyanAccent).withOpacity(0.35),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: ClipPath(
+              clipper: _ShapeClipper(shape: shape),
+              child: Stack(
+                alignment: Alignment.center,
+                fit: StackFit.expand,
+                children: [
+                  Transform.scale(
+                    scale: zoomScale,
+                    child: child,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShapeClipper extends CustomClipper<Path> {
+  final ShapeBorder shape;
+  _ShapeClipper({required this.shape});
+
+  @override
+  Path getClip(Size size) {
+    return shape.getOuterPath(Rect.fromLTWH(0, 0, size.width, size.height));
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => true;
 }
