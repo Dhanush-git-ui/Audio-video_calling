@@ -11,6 +11,8 @@ import 'package:provider/provider.dart';
 import '../providers/user_session_provider.dart';
 import 'token_generator.dart';
 import '../config.dart'; // Import LiveKitConfig
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js' as js;
 
 class VirtualWaitingRoom extends StatefulWidget {
   final String? initialRoom;
