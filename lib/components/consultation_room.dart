@@ -38,7 +38,22 @@ class ChatMessage {
   final String text;
   final bool isMe;
   final String time;
-  ChatMessage(this.text, this.isMe, this.time);
+  final bool isFile;
+  final String? fileName;
+  final String? filePath;
+  final String? memoryKey;
+  final String? senderName;
+
+  ChatMessage(
+    this.text,
+    this.isMe,
+    this.time, {
+    this.isFile = false,
+    this.fileName,
+    this.filePath,
+    this.memoryKey,
+    this.senderName,
+  });
 }
 
 class ConsultationRoom extends StatefulWidget {
@@ -118,6 +133,31 @@ class _ConsultationRoomState extends State<ConsultationRoom>
 
   // For reassembling incoming file chunks
   final Map<String, List<String?>> _incomingFileChunks = {};
+  Directory? _chatFilesDir;
+  final List<String> _webBlobUrls = [];
+  final Map<String, Uint8List> _inMemoryChatFiles = {};
+
+  // Patient Waiting Queue & Timer state
+  bool _doctorJoinedTriggered = false;
+  Timer? _waitingTimer;
+  int _secondsWaiting = 0;
+  int _liveMessageIndex = 0;
+  final List<String> _liveUpdateMessages = [
+    'Connecting to doctor...',
+    'Preparing consultation room...',
+    'Checking media devices...',
+    'Doctor is wrapping up previous patient...',
+  ];
+  String _liveUpdateMessage = 'Connecting to doctor...';
+  int _completedAppointments = 18;
+  int _queuePosition = 2;
+  int _estimatedWaitMinutes = 5;
+  int _currentTimelineStage = 2;
+  bool _isCameraReady = false;
+  bool _isMicReady = false;
+  bool _showCountdown = false;
+  int _countdownSeconds = 3;
+  Timer? _countdownTimer;
 
 
   String? _capturedDataUrl;
@@ -447,6 +487,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     try {
       js.context.callMethod('startSpeechRecognition', [
         _selectedLanguage,
+        // ignore: undefined_function
         js.allowInterop((String text) {
           if (mounted) {
             final identity = widget.isDoctor ? 'Dr. Amanulla' : 'James Carter';
@@ -626,7 +667,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
         }
       });
     });
->>>>>>> 78f49e2 (Add screenshot restriction (web_screenshot_stub.dart and web.dart and made changes in consultation_room.dart)
   }
 
   Future<void> _initLocalCamera() async {
@@ -1226,53 +1266,29 @@ class _ConsultationRoomState extends State<ConsultationRoom>
               'Background effects are not supported on this device.'),
           backgroundColor: Colors.orange.shade800,
         ),
->>>>>>> b7845d8 (Enhance screenshot protection and file preview in consultation room)
       );
       return;
     }
-    int currentIndex = _cameras.indexWhere((c) => c.deviceId == _selectedCameraId);
-    int nextIndex = (currentIndex + 1) % _cameras.length;
-    final nextCamera = _cameras[nextIndex];
-    
-    setState(() {
-      _selectedCameraId = nextCamera.deviceId;
-      _isCameraFlipped = !_isCameraFlipped;
-    });
-
-    if (_localVideoTrack != null) {
-      if (_room.connectionState == lk.ConnectionState.connected) {
-        final pubs = _room.localParticipant?.videoTrackPublications ?? [];
-        for (final p in pubs) {
-          if (p.track == _localVideoTrack) {
-            await _room.localParticipant?.removePublishedTrack(p.sid);
-            break;
-          }
-        }
-      }
-      await _localVideoTrack!.dispose();
-      _localVideoTrack = null;
-    }
 
     try {
-      final videoTrack = await LocalVideoTrack.createCameraTrack(
-        CameraCaptureOptions(deviceId: nextCamera.deviceId),
-      );
-      if (!isVideoOn) {
-        await videoTrack.mute();
+      if (themeId == 'none') {
+        js.context.callMethod('clearBackgroundEffect', []);
+        setState(() {
+          isBlurActive = false;
+        });
+      } else if (themeId == 'blur') {
+        js.context.callMethod('applyBackgroundBlur', [15]);
+        setState(() {
+          isBlurActive = true;
+        });
+      } else if (themeId == 'image' && url != null) {
+        js.context.callMethod('applyBackgroundImage', [url]);
+        setState(() {
+          isBlurActive = true;
+        });
       }
-      _localVideoTrack = videoTrack;
-      if (_room.connectionState == lk.ConnectionState.connected && isVideoOn) {
-        await _room.localParticipant?.publishVideoTrack(videoTrack);
-      }
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Switched to camera: ${nextCamera.label.isNotEmpty ? nextCamera.label : "Camera " + (nextIndex + 1).toString()}'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
     } catch (e) {
-      debugPrint("Error switching camera during call: $e");
+      debugPrint("Error setting background theme: $e");
     }
   }
 
@@ -1779,19 +1795,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     });
   }
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
-    if (result != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File uploading ("${result.files.single.name}") is disabled in the local sandbox environment.'),
-            backgroundColor: Colors.orange.shade800,
-          ),
-        );
-      }
-    }
-  }
+
 
   Future<void> _toggleVideo() async {
     final nextState = !isVideoOn;
