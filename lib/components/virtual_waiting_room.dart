@@ -151,14 +151,32 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
   Future<void> _loadDevices() async {
     try {
       final devices = await navigator.mediaDevices.enumerateDevices();
+      final seenCams = <String>{};
+      final uniqueCameras = <MediaDeviceInfo>[];
+      for (final d in devices.where((d) => d.kind == 'videoinput' && d.deviceId.isNotEmpty)) {
+        if (!seenCams.contains(d.deviceId)) {
+          seenCams.add(d.deviceId);
+          uniqueCameras.add(d);
+        }
+      }
+
+      final seenMics = <String>{};
+      final uniqueMics = <MediaDeviceInfo>[];
+      for (final d in devices.where((d) => d.kind == 'audioinput' && d.deviceId.isNotEmpty)) {
+        if (!seenMics.contains(d.deviceId)) {
+          seenMics.add(d.deviceId);
+          uniqueMics.add(d);
+        }
+      }
+
       setState(() {
-        _cameras = devices.where((d) => d.kind == 'videoinput').toList();
-        _microphones = devices.where((d) => d.kind == 'audioinput').toList();
+        _cameras = uniqueCameras;
+        _microphones = uniqueMics;
         
-        if (_cameras.isNotEmpty && _selectedCameraId == null) {
+        if (_cameras.isNotEmpty && (_selectedCameraId == null || !_cameras.any((d) => d.deviceId == _selectedCameraId))) {
           _selectedCameraId = _cameras.first.deviceId;
         }
-        if (_microphones.isNotEmpty && _selectedMicrophoneId == null) {
+        if (_microphones.isNotEmpty && (_selectedMicrophoneId == null || !_microphones.any((d) => d.deviceId == _selectedMicrophoneId))) {
           _selectedMicrophoneId = _microphones.first.deviceId;
         }
       });
@@ -1362,73 +1380,105 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
             
             // Camera Selector Dropdown
             if (_cameras.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedCameraId,
-                    isExpanded: true,
-                    dropdownColor: const Color(0xFF1E293B),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    items: _cameras.map((device) {
-                      return DropdownMenuItem(
-                        value: device.deviceId,
-                        child: Text(
-                          device.label.isNotEmpty 
-                              ? device.label 
-                              : 'Camera ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: _switchCamera,
-                  ),
-                ),
+              Builder(
+                builder: (context) {
+                  final uniqueCameras = <String, MediaDeviceInfo>{};
+                  for (final d in _cameras) {
+                    if (d.deviceId.isNotEmpty && !uniqueCameras.containsKey(d.deviceId)) {
+                      uniqueCameras[d.deviceId] = d;
+                    }
+                  }
+                  final camList = uniqueCameras.values.toList();
+                  if (camList.isEmpty) return const SizedBox.shrink();
+                  final selectedVal = camList.any((d) => d.deviceId == _selectedCameraId)
+                      ? _selectedCameraId
+                      : camList.first.deviceId;
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedVal,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF1E293B),
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        items: camList.map((device) {
+                          return DropdownMenuItem(
+                            value: device.deviceId,
+                            child: Text(
+                              device.label.isNotEmpty 
+                                  ? device.label 
+                                  : 'Camera ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: _switchCamera,
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 10),
             ],
 
             // Microphone Selector Dropdown & Level Meter
             if (_microphones.isNotEmpty) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedMicrophoneId,
-                          isExpanded: true,
-                          dropdownColor: const Color(0xFF1E293B),
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          items: _microphones.map((device) {
-                            return DropdownMenuItem(
-                              value: device.deviceId,
-                              child: Text(
-                                device.label.isNotEmpty 
-                                    ? device.label 
-                                    : 'Microphone ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: _switchMicrophone,
+              Builder(
+                builder: (context) {
+                  final uniqueMics = <String, MediaDeviceInfo>{};
+                  for (final d in _microphones) {
+                    if (d.deviceId.isNotEmpty && !uniqueMics.containsKey(d.deviceId)) {
+                      uniqueMics[d.deviceId] = d;
+                    }
+                  }
+                  final micList = uniqueMics.values.toList();
+                  if (micList.isEmpty) return const SizedBox.shrink();
+                  final selectedVal = micList.any((d) => d.deviceId == _selectedMicrophoneId)
+                      ? _selectedMicrophoneId
+                      : micList.first.deviceId;
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: selectedVal,
+                              isExpanded: true,
+                              dropdownColor: const Color(0xFF1E293B),
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                              items: micList.map((device) {
+                                return DropdownMenuItem(
+                                  value: device.deviceId,
+                                  child: Text(
+                                    device.label.isNotEmpty 
+                                        ? device.label 
+                                        : 'Microphone ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: _switchMicrophone,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Visual Mic Level Meter
-                  MicLevelMeter(isMicOn: _isMicOn),
-                ],
+                      const SizedBox(width: 12),
+                      // Visual Mic Level Meter
+                      MicLevelMeter(isMicOn: _isMicOn),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
             ],

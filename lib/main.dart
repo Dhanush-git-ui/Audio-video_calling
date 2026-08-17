@@ -9,7 +9,6 @@ import 'components/dashboard_layout.dart';
 import 'components/splash_screen.dart';
 import 'components/ai_pre_consultation.dart';
 import 'components/token_generator.dart';
-import 'features/biometric_verification/presentation/screens/biometric_verification_flow_screen.dart';
 import 'components/login_screen.dart';
 import 'components/guest_exit_screen.dart';
 import 'config.dart';
@@ -89,44 +88,37 @@ final GoRouter _router = GoRouter(
         final roomName = qp['room'] ?? 'CLINICAL_ROOM_1';
         final userName = qp['name'] ?? 'Guest';
 
-        if (role == 'guest' || role == 'patient') {
-          final isGuestRole = (role == 'guest');
-          final token = generateLiveKitToken(
-            roomName: roomName,
-            participantName: userName,
-            apiKey: LiveKitConfig.apiKey,
-            apiSecret: LiveKitConfig.apiSecret,
-          );
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.go(
-              Uri(
-                path: '/consultation',
-                queryParameters: {
-                  'room': roomName,
-                  'url': LiveKitConfig.serverUrl,
-                  'isDoctor': 'false',
-                  'isGuest': isGuestRole.toString(),
-                },
-              ).toString(),
-              extra: {
-                'token': token,
-                'isDoctor': 'false',
+        final isDoctorRole = (role == 'doctor');
+        final isGuestRole = (role == 'guest');
+        final token = generateLiveKitToken(
+          roomName: roomName,
+          participantName: userName,
+          apiKey: LiveKitConfig.apiKey,
+          apiSecret: LiveKitConfig.apiSecret,
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.go(
+            Uri(
+              path: '/consultation',
+              queryParameters: {
+                'room': roomName,
+                'url': LiveKitConfig.serverUrl,
+                'isDoctor': isDoctorRole.toString(),
                 'isGuest': isGuestRole.toString(),
               },
-            );
-          });
-          return const Scaffold(
-            backgroundColor: Color(0xFF0F172A),
-            body: Center(
-              child: CircularProgressIndicator(color: Colors.indigoAccent),
-            ),
+            ).toString(),
+            extra: {
+              'token': token,
+              'isDoctor': isDoctorRole.toString(),
+              'isGuest': isGuestRole.toString(),
+            },
           );
-        }
-
-        return BiometricVerificationFlowScreen(
-          roomName: roomName,
-          userName: userName,
-          role: role,
+        });
+        return const Scaffold(
+          backgroundColor: Color(0xFF0F172A),
+          body: Center(
+            child: CircularProgressIndicator(color: Colors.indigoAccent),
+          ),
         );
       },
     ),
