@@ -90,7 +90,6 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                             _buildTag('Cardiology', color: const Color(0xFF1554A6).withOpacity(0.18), textColor: const Color(0xFF93C5FD)),
                             _buildTag('25 Jan 2025, 07:00 AM'),
                             _buildTag('Online Consultation', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
-                            _buildTag('GPS: 40.7128° N, 74.0060° W', color: const Color(0xFF1554A6).withOpacity(0.15), textColor: const Color(0xFF60A5FA)),
                           ],
                         ),
                       ],

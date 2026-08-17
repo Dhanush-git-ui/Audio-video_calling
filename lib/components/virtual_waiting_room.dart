@@ -1164,59 +1164,26 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   onTap: _toggleMic,
                   tooltip: 'Microphone',
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 14),
                 _buildLobbyCircleBtn(
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   isActive: _isCameraOn,
                   onTap: _toggleCamera,
                   tooltip: 'Camera',
                 ),
-                const SizedBox(width: 10),
-                _buildLobbyCircleBtn(
-                  icon: _isBlurActive ? Icons.blur_on : Icons.blur_off,
-                  isActive: _isBlurActive,
-                  onTap: _toggleBlur,
-                  tooltip: 'Background Blur',
-                ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 14),
                 _buildLobbyCircleBtn(
                   icon: _isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
                   isActive: _isNoiseCancellationActive,
                   onTap: _toggleNoiseCancellation,
                   tooltip: 'AI Noise Shield',
                 ),
-                const SizedBox(width: 10),
-                // Camera Flip button
+                const SizedBox(width: 14),
                 _buildLobbyCircleBtn(
                   icon: Icons.flip_camera_ios,
                   isActive: _isCameraFlipped,
                   onTap: _flipCamera,
                   tooltip: 'Flip Camera',
-                ),
-                const SizedBox(width: 10),
-                // Geolocation button
-                _buildLobbyCircleBtn(
-                  icon: _isLocationShared ? Icons.location_on : Icons.location_off,
-                  isActive: _isLocationShared,
-                  onTap: () {
-                    setState(() {
-                      _isLocationShared = !_isLocationShared;
-                      if (_isLocationShared) {
-                        _gpsCoordinates = '40.7128° N, 74.0060° W'; // Mocked GPS coordinates
-                      } else {
-                        _gpsCoordinates = null;
-                      }
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(_isLocationShared 
-                          ? 'GPS coordinates shared with medical session: $_gpsCoordinates' 
-                          : 'GPS location sharing revoked.'),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  tooltip: 'Share Location',
                 ),
               ],
             ),
@@ -1541,117 +1508,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
               SizedBox(height: isSmall ? 10 : 16),
             ],
 
-            const Divider(color: Colors.white10, height: 24),
-            const Text(
-              'Select Audio & Video Devices',
-              style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            
-            // Camera Selector Dropdown
-            if (_cameras.isNotEmpty) ...[
-              Builder(
-                builder: (context) {
-                  final uniqueCameras = <String, MediaDeviceInfo>{};
-                  for (final d in _cameras) {
-                    if (d.deviceId.isNotEmpty && !uniqueCameras.containsKey(d.deviceId)) {
-                      uniqueCameras[d.deviceId] = d;
-                    }
-                  }
-                  final camList = uniqueCameras.values.toList();
-                  if (camList.isEmpty) return const SizedBox.shrink();
-                  final selectedVal = camList.any((d) => d.deviceId == _selectedCameraId)
-                      ? _selectedCameraId
-                      : camList.first.deviceId;
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedVal,
-                        isExpanded: true,
-                        dropdownColor: const Color(0xFF1E293B),
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
-                        items: camList.map((device) {
-                          return DropdownMenuItem(
-                            value: device.deviceId,
-                            child: Text(
-                              device.label.isNotEmpty 
-                                  ? device.label 
-                                  : 'Camera ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: _switchCamera,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
-
-            // Microphone Selector Dropdown & Level Meter
-            if (_microphones.isNotEmpty) ...[
-              Builder(
-                builder: (context) {
-                  final uniqueMics = <String, MediaDeviceInfo>{};
-                  for (final d in _microphones) {
-                    if (d.deviceId.isNotEmpty && !uniqueMics.containsKey(d.deviceId)) {
-                      uniqueMics[d.deviceId] = d;
-                    }
-                  }
-                  final micList = uniqueMics.values.toList();
-                  if (micList.isEmpty) return const SizedBox.shrink();
-                  final selectedVal = micList.any((d) => d.deviceId == _selectedMicrophoneId)
-                      ? _selectedMicrophoneId
-                      : micList.first.deviceId;
-
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: selectedVal,
-                              isExpanded: true,
-                              dropdownColor: const Color(0xFF1E293B),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              items: micList.map((device) {
-                                return DropdownMenuItem(
-                                  value: device.deviceId,
-                                  child: Text(
-                                    device.label.isNotEmpty 
-                                        ? device.label 
-                                        : 'Microphone ${device.deviceId.substring(0, min(device.deviceId.length, 5))}',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: _switchMicrophone,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Visual Mic Level Meter
-                      MicLevelMeter(isMicOn: _isMicOn),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
+            const SizedBox(height: 8),
 
             // Mandatory Tele-health Consent Checkbox
             Container(

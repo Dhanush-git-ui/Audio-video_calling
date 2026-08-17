@@ -3263,7 +3263,8 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                     : const EdgeInsets.fromLTRB(24, 80, 24, 110),
                 child: WhiteboardCanvas(
                   remoteEventStream: _whiteboardStreamController.stream,
-                  isReadOnly: widget.isGuest,
+                  isReadOnly: false,
+                  onClose: () => setState(() => isWhiteboardOpen = false),
                   onLocalDraw: (point) {
                     final payload = jsonEncode({
                       'action': point.action,
@@ -3426,13 +3427,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                       ),
                       const SizedBox(width: 16),
                       _buildControlButton(
-                        icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
-                        label: widget.isPip ? null : 'Blur',
-                        isActive: isBlurActive,
-                        onTap: _toggleBackgroundBlur,
-                      ),
-                      const SizedBox(width: 16),
-                      _buildControlButton(
                         icon: isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
                         label: widget.isPip ? null : 'Noise Shield',
                         isActive: isNoiseCancellationActive,
@@ -3574,21 +3568,14 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                         setState(() => isWhiteboardOpen = !isWhiteboardOpen);
                       },
                     ),
-                    // Blur
+                    // Noise Shield
                     _buildSheetOption(
-                      icon: Icons.blur_on,
-                      label: 'Blur',
-                      isActive: isBlurActive,
+                      icon: isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
+                      label: 'Noise Shield',
+                      isActive: isNoiseCancellationActive,
                       onTap: () {
                         Navigator.pop(context);
-                        setState(() => isBlurActive = !isBlurActive);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Background Blur requires ML WebAssembly assets (TFLite) and Cross-Origin isolation headers to be deployed on the hosting server. This feature will activate in production!'),
-                            backgroundColor: Colors.indigo.shade800,
-                            duration: const Duration(seconds: 4),
-                          ),
-                        );
+                        _toggleNoiseCancellation();
                       },
                     ),
                     // Invite

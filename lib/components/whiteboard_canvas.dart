@@ -30,6 +30,7 @@ class WhiteboardPoint {
 class WhiteboardCanvas extends StatefulWidget {
   final Function(WhiteboardPoint) onLocalDraw;
   final VoidCallback onLocalClear;
+  final VoidCallback? onClose;
   final Stream<dynamic>? remoteEventStream;
   final bool isReadOnly;
 
@@ -37,6 +38,7 @@ class WhiteboardCanvas extends StatefulWidget {
     super.key,
     required this.onLocalDraw,
     required this.onLocalClear,
+    this.onClose,
     this.remoteEventStream,
     this.isReadOnly = false,
   });
@@ -49,7 +51,7 @@ class _WhiteboardCanvasState extends State<WhiteboardCanvas> {
   final List<DrawingLine> _lines = [];
   DrawingLine? _currentDrawingLine;
 
-  Color _activeColor = Colors.indigoAccent;
+  Color _activeColor = const Color(0xFF2563EB); // CallHealth Royal Blue
   double _strokeWidth = 4.0;
   WhiteboardTool _activeTool = WhiteboardTool.pen;
   StreamSubscription? _remoteStreamSub;
@@ -185,10 +187,10 @@ class _WhiteboardCanvasState extends State<WhiteboardCanvas> {
                       SizedBox(width: isNarrow ? 8 : 16),
                       
                       if (_activeTool == WhiteboardTool.pen) ...[
-                        _buildColorIndicator(Colors.indigoAccent),
-                        _buildColorIndicator(Colors.pinkAccent),
-                        _buildColorIndicator(Colors.greenAccent),
-                        _buildColorIndicator(Colors.amber),
+                        _buildColorIndicator(const Color(0xFF2563EB)), // CallHealth Royal Blue
+                        _buildColorIndicator(const Color(0xFF78C02B)), // CallHealth Leaf Green
+                        _buildColorIndicator(const Color(0xFFF59E0B)), // Warning Orange
+                        _buildColorIndicator(const Color(0xFFE11D48)), // Medical Red
                         _buildColorIndicator(Colors.white),
                         SizedBox(width: isNarrow ? 8 : 16),
                       ],
@@ -223,7 +225,7 @@ class _WhiteboardCanvasState extends State<WhiteboardCanvas> {
                             value: _strokeWidth,
                             min: 2.0,
                             max: 15.0,
-                            activeColor: Colors.indigoAccent,
+                            activeColor: const Color(0xFF78C02B),
                             inactiveColor: Colors.white24,
                             onChanged: (val) => setState(() => _strokeWidth = val),
                           ),
@@ -231,10 +233,18 @@ class _WhiteboardCanvasState extends State<WhiteboardCanvas> {
                       ],
 
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                        icon: const Icon(Icons.delete_outline, color: Color(0xFFE11D48)),
                         onPressed: _clearCanvas,
                         tooltip: 'Clear Board',
                       ),
+                      if (widget.onClose != null) ...[
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70),
+                          onPressed: widget.onClose,
+                          tooltip: 'Close Whiteboard',
+                        ),
+                      ],
                     ],
                   ),
           ),
