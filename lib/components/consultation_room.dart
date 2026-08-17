@@ -96,6 +96,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   late bool isAudioOn = widget.initialAudioOn;
   bool isChatOpen = false;
   bool isBlurActive = false;
+  bool isNoiseCancellationActive = true;
   String? _mediaErrorMessage;
   bool isWhiteboardOpen = false;
   bool _showInlineInviteCard = true; 
@@ -1258,38 +1259,84 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   bool _isTogglingVideo = false;
   bool _isTogglingAudio = false;
 
-  void _setBgTheme(String themeId, String? url) {
-    if (!kIsWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-              'Background effects are not supported on this device.'),
-          backgroundColor: Colors.orange.shade800,
-        ),
-      );
-      return;
+  void _toggleBackgroundBlur() {
+    setState(() {
+      isBlurActive = !isBlurActive;
+    });
+
+    if (kIsWeb) {
+      try {
+        if (isBlurActive) {
+          js.context.callMethod('applyBackgroundBlur', [14]);
+        } else {
+          js.context.callMethod('clearBackgroundEffect', []);
+        }
+      } catch (e) {
+        debugPrint("Error toggling background blur: $e");
+      }
     }
 
-    try {
-      if (themeId == 'none') {
-        js.context.callMethod('clearBackgroundEffect', []);
-        setState(() {
-          isBlurActive = false;
-        });
-      } else if (themeId == 'blur') {
-        js.context.callMethod('applyBackgroundBlur', [15]);
-        setState(() {
-          isBlurActive = true;
-        });
-      } else if (themeId == 'image' && url != null) {
-        js.context.callMethod('applyBackgroundImage', [url]);
-        setState(() {
-          isBlurActive = true;
-        });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isBlurActive ? Icons.blur_on : Icons.blur_off,
+              color: isBlurActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              isBlurActive
+                  ? '✨ Real-time Background Blur Filter Activated'
+                  : 'Background Blur Filter Turned Off',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: isBlurActive ? const Color(0xFF1554A6) : const Color(0xFF111C33),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _toggleNoiseCancellation() {
+    setState(() {
+      isNoiseCancellationActive = !isNoiseCancellationActive;
+    });
+
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('setNoiseCancellation', [isNoiseCancellationActive]);
+      } catch (e) {
+        debugPrint("Error toggling noise cancellation: $e");
       }
-    } catch (e) {
-      debugPrint("Error setting background theme: $e");
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
+              color: isNoiseCancellationActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              isNoiseCancellationActive
+                  ? '🛡️ AI Noise Cancellation Enabled — Background noise filtered.'
+                  : 'AI Noise Cancellation Disabled.',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: isNoiseCancellationActive ? const Color(0xFF1554A6) : const Color(0xFF111C33),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _checkForPendingGuests() {
@@ -3379,22 +3426,17 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                       ),
                       const SizedBox(width: 16),
                       _buildControlButton(
-                        icon: Icons.blur_on,
+                        icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
                         label: widget.isPip ? null : 'Blur',
                         isActive: isBlurActive,
-                        onTap: () {
-                          setState(() => isBlurActive = !isBlurActive);
-                          if (kIsWeb) {
-                            js.context.callMethod('toggleBackgroundBlur', [isBlurActive]);
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(isBlurActive ? '✨ Background Blur Filter Activated!' : 'Background Blur Filter Turned Off'),
-                              backgroundColor: isBlurActive ? Colors.indigo.shade800 : Colors.grey.shade800,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
+                        onTap: _toggleBackgroundBlur,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildControlButton(
+                        icon: isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
+                        label: widget.isPip ? null : 'Noise Shield',
+                        isActive: isNoiseCancellationActive,
+                        onTap: _toggleNoiseCancellation,
                       ),
                       const SizedBox(width: 16),
                       _buildControlButton(

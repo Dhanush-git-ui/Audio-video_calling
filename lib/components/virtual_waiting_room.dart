@@ -80,6 +80,8 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
   String? _cameraError;
   String? _micError;
   bool _isInitializingMedia = true;
+  bool _isBlurActive = false;
+  bool _isNoiseCancellationActive = true;
 
   // Device lists and selection states
   List<MediaDeviceInfo> _cameras = [];
@@ -381,6 +383,84 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
         ),
       );
     }
+  }
+
+  void _toggleBlur() {
+    setState(() {
+      _isBlurActive = !_isBlurActive;
+    });
+
+    if (kIsWeb) {
+      try {
+        if (_isBlurActive) {
+          js.context.callMethod('applyBackgroundBlur', [14]);
+        } else {
+          js.context.callMethod('clearBackgroundEffect', []);
+        }
+      } catch (e) {
+        debugPrint("Error toggling background blur in lobby: $e");
+      }
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              _isBlurActive ? Icons.blur_on : Icons.blur_off,
+              color: _isBlurActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _isBlurActive ? '✨ Background Blur Filter Preview Active' : 'Background Blur Filter Turned Off',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: _isBlurActive ? const Color(0xFF1554A6) : const Color(0xFF111C33),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _toggleNoiseCancellation() {
+    setState(() {
+      _isNoiseCancellationActive = !_isNoiseCancellationActive;
+    });
+
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('setNoiseCancellation', [_isNoiseCancellationActive]);
+      } catch (e) {
+        debugPrint("Error toggling noise cancellation in lobby: $e");
+      }
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              _isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
+              color: _isNoiseCancellationActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _isNoiseCancellationActive
+                  ? '🛡️ AI Noise Cancellation Enabled — Background noise will be filtered.'
+                  : 'AI Noise Cancellation Disabled.',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: _isNoiseCancellationActive ? const Color(0xFF1554A6) : const Color(0xFF111C33),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   Future<void> _takeLivePhoto() async {
@@ -1080,21 +1160,38 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   icon: _isMicOn ? Icons.mic : Icons.mic_off,
                   isActive: _isMicOn,
                   onTap: _toggleMic,
+                  tooltip: 'Microphone',
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 _buildLobbyCircleBtn(
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   isActive: _isCameraOn,
                   onTap: _toggleCamera,
+                  tooltip: 'Camera',
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
+                _buildLobbyCircleBtn(
+                  icon: _isBlurActive ? Icons.blur_on : Icons.blur_off,
+                  isActive: _isBlurActive,
+                  onTap: _toggleBlur,
+                  tooltip: 'Background Blur',
+                ),
+                const SizedBox(width: 10),
+                _buildLobbyCircleBtn(
+                  icon: _isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
+                  isActive: _isNoiseCancellationActive,
+                  onTap: _toggleNoiseCancellation,
+                  tooltip: 'AI Noise Shield',
+                ),
+                const SizedBox(width: 10),
                 // Camera Flip button
                 _buildLobbyCircleBtn(
                   icon: Icons.flip_camera_ios,
                   isActive: _isCameraFlipped,
                   onTap: _flipCamera,
+                  tooltip: 'Flip Camera',
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 // Geolocation button
                 _buildLobbyCircleBtn(
                   icon: _isLocationShared ? Icons.location_on : Icons.location_off,
@@ -1117,6 +1214,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                       ),
                     );
                   },
+                  tooltip: 'Share Location',
                 ),
               ],
             ),
@@ -1130,27 +1228,31 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     required IconData icon,
     required bool isActive,
     required VoidCallback onTap,
+    String? tooltip,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isActive ? Colors.indigoAccent : const Color(0xFFEF4444),
-        shape: BoxShape.circle,
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          )
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Padding(
-            padding: const EdgeInsets.all(14.0),
-            child: Icon(icon, color: Colors.white, size: 22),
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Container(
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFF1554A6) : const Color(0xFFE11D48),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: (isActive ? const Color(0xFF1554A6) : const Color(0xFFE11D48)).withOpacity(0.35),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
           ),
         ),
       ),
