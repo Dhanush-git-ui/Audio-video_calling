@@ -757,6 +757,479 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       );
       return;
     }
+
+    final currentIndex = _cameras.indexWhere((c) => c.deviceId == _selectedCameraId);
+    final nextIndex = (currentIndex + 1) % _cameras.length;
+    _selectedCameraId = _cameras[nextIndex].deviceId;
+    await _initLocalCamera();
+  }
+
+  // Opens a received file using the device's native application.
+  // On web the file is previewed in an in-app overlay dialog.
+  Future<void> _openReceivedFile(ChatMessage msg) async {
+    if (kIsWeb) {
+      // Web: show an in-app preview dialog instead of opening a new tab.
+      final key = msg.memoryKey;
+      if (key == null) return;
+      final bytes = _inMemoryChatFiles[key];
+      if (bytes == null) return;
+      final name = msg.fileName ?? msg.text;
+      final mimeType = getMimeType(name);
+
+      // Check if this file type is previewable
+      final isImage = mimeType.startsWith('image/');
+      final blobUrl = createBlobUrl(name, bytes);
+      if (blobUrl.isEmpty && !isImage) {
+        // File type cannot be rendered — show a SnackBar.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Cannot preview "$name" in the browser. '
+                'This file type is not supported for in-browser viewing.',
+              ),
+              backgroundColor: Colors.orange.shade800,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (blobUrl.isNotEmpty) {
+        _webBlobUrls.add(blobUrl);
+      }
+
+      _showDocumentPreviewDialog(
+        fileName: name,
+        mimeType: mimeType,
+        bytes: bytes,
+        blobUrl: blobUrl,
+      );
+      return;
+    }
+
+    final path = msg.filePath;
+    if (path == null || path.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File path is unavailable.')),
+        );
+      }
+      return;
+    }
+
+    final result = await OpenFilex.open(path);
+    if (result.type != ResultType.done) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open file: ${result.message}'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Shows an in-app full-screen overlay to preview a document.
+  ///
+  /// - **Images** (PNG, JPEG, GIF, etc.) are rendered with [Image.memory].
+  /// - **PDFs / other renderable types** use an embedded `<iframe>` via
+  ///   [HtmlElementView] so the browser's native viewer handles rendering.
+  ///
+  /// The preview is **read-only**: no download, save, or print buttons are
+  /// shown.  Right-click context menu and image dragging are blocked.
+  /// A prominent close button sits at the top-right.
+  void _showDocumentPreviewDialog({
+    required String fileName,
+    required String mimeType,
+    required Uint8List bytes,
+    required String blobUrl,
+  }) {
+    final isImage = mimeType.startsWith('image/');
+
+    // For non-image renderable types, register an iframe platform view.
+    String? iframeViewType;
+    if (!isImage && blobUrl.isNotEmpty) {
+      iframeViewType =
+          'doc-preview-${DateTime.now().millisecondsSinceEpoch}';
+      registerIframeView(iframeViewType, blobUrl, mimeType: mimeType);
+    }
+
+    // Tell the screenshot protector mixin that an in-app preview is active
+    // so that iframe-caused focus shifts don't trigger false security warnings.
+    // Uses public mixin method to avoid accessing private mixin variables.
+    setDocumentPreviewActive(true);
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (dialogContext) {
+        return PopScope(
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) {
+              // Preview closed — clear the guard flag, force-reset any
+              // leftover blur overlay state, and restore protector focus.
+              setDocumentPreviewActive(false);
+              forceResetBlur();
+              restoreProtectorFocus();
+            }
+          },
+          child: Stack(
+            children: [
+              // Preview content — fills the screen
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 60),
+                  child: Column(
+                    children: [
+                      // File name header — only action is Close (X)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            topRight: Radius.circular(16),
+                          ),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.08)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isImage
+                                  ? Icons.image
+                                  : Icons.insert_drive_file,
+                              color: const Color(0xFF818CF8),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                fileName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            // Close button — the ONLY action in the header
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () =>
+                                    Navigator.of(dialogContext).pop(),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Content area — wrapped to block right-click & drag
+                      Expanded(
+                        child: GestureDetector(
+                          // Block right-click context menu ("Save image as…")
+                          onSecondaryTapDown: (_) {},
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(16),
+                                bottomRight: Radius.circular(16),
+                              ),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.08)),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: isImage
+                                ? InteractiveViewer(
+                                    minScale: 0.5,
+                                    maxScale: 4.0,
+                                    child: Center(
+                                      child: IgnorePointer(
+                                        // Prevents the browser from initiating
+                                        // a native image drag operation.
+                                        ignoring: false,
+                                        child: Image.memory(
+                                          bytes,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (context, error,
+                                              stackTrace) {
+                                            return const Center(
+                                              child: Column(
+                                                mainAxisSize:
+                                                    MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.broken_image,
+                                                      color:
+                                                          Colors.white38,
+                                                      size: 48),
+                                                  SizedBox(height: 12),
+                                                  Text(
+                                                    'Unable to display image',
+                                                    style: TextStyle(
+                                                        color: Colors
+                                                            .white54,
+                                                        fontSize: 13),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : (iframeViewType != null
+                                    ? HtmlElementView(
+                                        viewType: iframeViewType,
+                                      )
+                                    : const Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.error_outline,
+                                                color: Colors.white38,
+                                                size: 48),
+                                            SizedBox(height: 12),
+                                            Text(
+                                              'Preview not available for this file type',
+                                              style: TextStyle(
+                                                  color: Colors.white54,
+                                                  fontSize: 13),
+                                            ),
+                                          ],
+                                        ),
+                                      )),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ).then((_) {
+      // Safety net: ensure all state is cleared even if PopScope didn't fire
+      // (e.g. barrier tap, system back gesture).
+      setDocumentPreviewActive(false);
+      forceResetBlur();
+    });
+  }
+
+
+  // Clears local chat file storage when the call ends.
+  // MinIO uploads already happened at the moment each file was sent/received.
+  Future<void> _cleanupChatFiles() async {
+    if (kIsWeb) {
+      for (final url in _webBlobUrls) {
+        revokeBlobUrl(url);
+      }
+      _webBlobUrls.clear();
+      _inMemoryChatFiles.clear();
+      return;
+    }
+    try {
+      if (_chatFilesDir != null && await _chatFilesDir!.exists()) {
+        await _chatFilesDir!.delete(recursive: true);
+        debugPrint('Chat files cleaned up for room: ${widget.roomName}');
+      }
+    } catch (e) {
+      debugPrint('Error cleaning up chat files: $e');
+    }
+    _chatFilesDir = null;
+  }
+
+  Future<void> _pickFile() async {
+    // withData: true ensures we get the raw bytes back (needed on web too)
+    FilePickerResult? result =
+        await FilePicker.platform.pickFiles(withData: true);
+    if (result == null) return;
+
+    final pickedFile = result.files.single;
+    Uint8List? bytes = pickedFile.bytes;
+
+    if (bytes == null && pickedFile.path != null) {
+      try {
+        final file = File(pickedFile.path!);
+        bytes = await file.readAsBytes();
+      } catch (e) {
+        debugPrint("Error reading picked file from path: $e");
+      }
+    }
+
+    if (bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not read the selected file.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    final fileName = pickedFile.name;
+    final fileId = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    final base64Data = base64Encode(bytes);
+
+    // Upload to Supabase Storage immediately (fire-and-forget).
+    // Only the SENDER uploads — the receiver skips upload to avoid duplicates.
+    final sentAt = DateTime.now();
+    debugPrint('Supabase: triggering upload for sent file "$fileName"');
+    unawaited(SupabaseStorageService.uploadFile(
+      fileName: fileName,
+      bytes: bytes,
+      receivedAt: sentAt,
+      callEndedAt: sentAt,
+    ));
+
+    // Data channel messages have a size limit, so we split the base64 string
+    // into smaller chunks and send them one by one (same pattern already
+    // used for whiteboard background images).
+    const chunkSize = 12000; // characters per chunk
+    final totalChunks = (base64Data.length / chunkSize).ceil();
+
+    bool sendFailed = false;
+
+    for (int i = 0; i < totalChunks; i++) {
+      final start = i * chunkSize;
+      final end = (start + chunkSize < base64Data.length)
+          ? start + chunkSize
+          : base64Data.length;
+      final chunk = base64Data.substring(start, end);
+
+      final payload = jsonEncode({
+        'type': 'file_chunk',
+        'fileId': fileId,
+        'fileName': fileName,
+        'index': i,
+        'total': totalChunks,
+        'data': chunk,
+      });
+
+      // _room.localParticipant?.publishData(
+      //   utf8.encode(payload),
+      //   reliable: true,
+      //   topic: 'chat_file',
+      // );
+      try {
+        // IMPORTANT: await each send and wait a beat before the next one.
+        // Firing all chunks back-to-back without waiting can overflow the
+        // WebRTC data channel's send buffer, silently dropping chunks - which
+        // means the file can never be reassembled on the other end.
+        await _room.localParticipant?.publishData(
+          utf8.encode(payload),
+          reliable: true,
+          topic: 'chat_file',
+        );
+        await Future.delayed(const Duration(milliseconds: 20));
+      } catch (e) {
+        debugPrint("Error sending file chunk $i/$totalChunks: $e");
+        sendFailed = true;
+        break;
+      }
+    }
+
+    // Show the file we just sent in our own chat list
+    if (mounted) {
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            fileName,
+            true,
+            DateFormat('hh:mm a').format(DateTime.now()),
+            isFile: true,
+            fileName: fileName,
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _shareMyLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    try {
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      Position position = await Geolocator.getCurrentPosition();
+
+      String locationStr =
+          "${position.latitude.toStringAsFixed(2)}, ${position.longitude.toStringAsFixed(2)}";
+
+      final data = jsonEncode({'city': locationStr});
+
+      await _room.localParticipant?.publishData(
+        utf8.encode(data),
+        topic: 'location',
+      );
+
+      final identity = _room.localParticipant?.identity ?? 'Me';
+      final name = _room.localParticipant?.name ?? 'Me';
+
+      if (mounted) {
+        setState(() {
+          _participantLocations[identity] = {
+            'name': name,
+            'city': locationStr,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint("Error sharing location: $e");
+    }
+  }
+
+  bool _isTogglingVideo = false;
+  bool _isTogglingAudio = false;
+
+  void _setBgTheme(String themeId, String? url) {
+    if (!kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+              'Background effects are not supported on this device.'),
+          backgroundColor: Colors.orange.shade800,
+        ),
+>>>>>>> b7845d8 (Enhance screenshot protection and file preview in consultation room)
+      );
+      return;
+    }
     int currentIndex = _cameras.indexWhere((c) => c.deviceId == _selectedCameraId);
     int nextIndex = (currentIndex + 1) % _cameras.length;
     final nextCamera = _cameras[nextIndex];
@@ -3592,7 +4065,42 @@ class _ShapeClipper extends CustomClipper<Path> {
 mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
   bool _isWarningOpen = false;
   bool _shouldBlurScreen = false;
+  bool _isDocumentPreviewOpen = false;
   final FocusNode _keyboardFocusNode = FocusNode();
+
+  /// Public method: marks the document preview as open/closed.
+  /// When open, focus-based blur triggers (iframe focus, window blur) are
+  /// suppressed to prevent false positives. Keyboard shortcut-triggered
+  /// protection remains fully active.
+  void setDocumentPreviewActive(bool active) {
+    _isDocumentPreviewOpen = active;
+  }
+
+  /// Public method: restores keyboard focus to the protector's focus node
+  /// after a dialog or overlay is dismissed, ensuring shortcut detection
+  /// resumes cleanly without re-firing blur callbacks.
+  void restoreProtectorFocus() {
+    // Defer focus restoration to the next frame so the dialog's exit
+    // animation completes and focus listeners don't immediately re-fire.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _keyboardFocusNode.requestFocus();
+    });
+  }
+
+  /// Public method: unconditionally resets the blur overlay and warning
+  /// guard flags to their clean (non-blocking) state.
+  ///
+  /// Call this when closing the document preview or any overlay that
+  /// might leave residual state (e.g. if a screenshot warning was active
+  /// when the preview was dismissed).
+  void forceResetBlur() {
+    if (!mounted) return;
+    hideNativeWebOverlay();
+    setState(() {
+      _shouldBlurScreen = false;
+      _isWarningOpen = false;
+    });
+  }
 
   @override
   void initState() {
@@ -3619,6 +4127,9 @@ mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
         setupWebScreenshotProtection(
           onBlur: () => _toggleBlur(true),
           onFocus: () => _toggleBlur(false),
+          // Keyboard shortcut-triggered blurs use fromShortcut: true so they
+          // ALWAYS fire, even when a document preview dialog is open.
+          onScreenshotShortcut: () => _toggleBlur(true, fromShortcut: true),
         );
       } catch (e) {
         debugPrint('Web Screenshot Protection setup error: $e');
@@ -3626,8 +4137,14 @@ mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
     }
   }
 
-  void _toggleBlur(bool blur) {
+  void _toggleBlur(bool blur, {bool fromShortcut = false}) {
     if (!mounted || _shouldBlurScreen == blur) return;
+    // When a document preview dialog is open, focus-based blurs (iframe
+    // stealing focus, window losing focus to OS UI) are suppressed to
+    // prevent false positives and infinite warning loops.
+    // Keyboard shortcut-triggered blurs (fromShortcut: true) ALWAYS fire
+    // so that screenshot protection remains active during document preview.
+    if (blur && _isDocumentPreviewOpen && !fromShortcut) return;
     setState(() {
       _shouldBlurScreen = blur;
     });
@@ -3660,11 +4177,15 @@ mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
+                // Explicitly reset BOTH flags and hide the native overlay.
                 hideNativeWebOverlay();
                 setState(() {
                   _isWarningOpen = false;
                   _shouldBlurScreen = false;
                 });
+                // Restore focus to the protector node in the next frame
+                // so it doesn't immediately re-trigger focus/blur listeners.
+                restoreProtectorFocus();
               },
               child: const Text(
                 'Return to Consultation',
@@ -3690,13 +4211,13 @@ mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
 
           // 1. Detect PrintScreen Key
           if (event.logicalKey == LogicalKeyboardKey.printScreen) {
-            _toggleBlur(true);
+            _toggleBlur(true, fromShortcut: true);
           }
           // 2. Windows Snipping Tool: Win + Shift + S or Ctrl + Shift + S
           else if (isCmdOrCtrl &&
               isShiftPressed &&
               event.logicalKey == LogicalKeyboardKey.keyS) {
-            _toggleBlur(true);
+            _toggleBlur(true, fromShortcut: true);
           }
           // 3. macOS Screenshot shortcuts: Cmd + Shift + 3, Cmd + Shift + 4, Cmd + Shift + 5
           else if (isCmdOrCtrl &&
@@ -3704,11 +4225,11 @@ mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
               (event.logicalKey == LogicalKeyboardKey.digit3 ||
                   event.logicalKey == LogicalKeyboardKey.digit4 ||
                   event.logicalKey == LogicalKeyboardKey.digit5)) {
-            _toggleBlur(true);
+            _toggleBlur(true, fromShortcut: true);
           }
           // 4. Detect Ctrl + P or Cmd + P (Browser Printing context)
           else if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyP) {
-            _toggleBlur(true);
+            _toggleBlur(true, fromShortcut: true);
           }
         }
       },

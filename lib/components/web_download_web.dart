@@ -1,6 +1,8 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'dart:typed_data';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:ui_web' as ui_web;
 
 /// MIME types that all major browsers can render natively in a tab.
 /// Any type NOT in this set would trigger a download dialog — which we
@@ -95,6 +97,50 @@ String openFileInBrowser(String fileName, List<int> bytes) {
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.window.open(url, '_blank');
   return url; // caller must call revokeBlobUrl(url) to free memory
+}
+
+/// Creates a Blob URL from [bytes] **without** opening a new browser tab.
+///
+/// Returns the Blob URL string (caller must revoke it later via
+/// [revokeBlobUrl]), or an empty string if the file type is not
+/// browser-renderable.
+String createBlobUrl(String fileName, List<int> bytes) {
+  final mimeType = _mimeTypeForFileName(fileName);
+  if (!_browserRenderableMimeTypes.contains(mimeType)) {
+    return '';
+  }
+  final blob = html.Blob([Uint8List.fromList(bytes)], mimeType);
+  return html.Url.createObjectUrlFromBlob(blob);
+}
+
+/// Returns the MIME type string for the given [fileName].
+String getMimeType(String fileName) => _mimeTypeForFileName(fileName);
+
+/// Registers a platform view factory that creates an `<iframe>` pointing to
+/// [blobUrl]. The iframe fills its parent container and has no border.
+///
+/// [viewType] must be unique per preview instance (e.g. include a timestamp).
+/// [mimeType] is used to apply type-specific tweaks (e.g. hiding Chrome's
+/// built-in PDF toolbar by appending `#toolbar=0&navpanes=0`).
+void registerIframeView(String viewType, String blobUrl, {String mimeType = ''}) {
+  // For PDFs, append fragment to hide Chrome's built-in PDF viewer toolbar
+  // (download, print, rotate buttons). This does not affect other file types.
+  final src = mimeType == 'application/pdf'
+      ? '$blobUrl#toolbar=0&navpanes=0'
+      : blobUrl;
+
+  // ignore: undefined_prefixed_name
+  ui_web.platformViewRegistry.registerViewFactory(viewType, (int viewId) {
+    final iframe = html.IFrameElement()
+      ..src = src
+      ..style.border = 'none'
+      ..style.width = '100%'
+      ..style.height = '100%'
+      ..allow = 'fullscreen';
+    // Block right-click context menu on the iframe element itself
+    iframe.onContextMenu.listen((e) => e.preventDefault());
+    return iframe;
+  });
 }
 
 /// Revokes [url], freeing the in-memory blob data.
