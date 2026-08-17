@@ -13,6 +13,7 @@ import 'token_generator.dart';
 import '../config.dart'; // Import LiveKitConfig
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:js' as js;
+import 'dart:ui' as ui;
 
 class VirtualWaitingRoom extends StatefulWidget {
   final String? initialRoom;
@@ -1072,7 +1073,12 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
           else if (_isCameraOn && _localVideoTrack != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: VideoTrackRenderer(_localVideoTrack!),
+              child: ImageFiltered(
+                imageFilter: _isBlurActive
+                    ? ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14)
+                    : ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                child: VideoTrackRenderer(_localVideoTrack!),
+              ),
             )
           else
             const Column(
@@ -1164,21 +1170,28 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   onTap: _toggleMic,
                   tooltip: 'Microphone',
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 _buildLobbyCircleBtn(
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   isActive: _isCameraOn,
                   onTap: _toggleCamera,
                   tooltip: 'Camera',
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
+                _buildLobbyCircleBtn(
+                  icon: _isBlurActive ? Icons.blur_on : Icons.blur_off,
+                  isActive: _isBlurActive,
+                  onTap: _toggleBlur,
+                  tooltip: 'Background Blur',
+                ),
+                const SizedBox(width: 12),
                 _buildLobbyCircleBtn(
                   icon: _isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
                   isActive: _isNoiseCancellationActive,
                   onTap: _toggleNoiseCancellation,
                   tooltip: 'AI Noise Shield',
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 _buildLobbyCircleBtn(
                   icon: Icons.flip_camera_ios,
                   isActive: _isCameraFlipped,

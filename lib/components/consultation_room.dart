@@ -1884,6 +1884,50 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     }
   }
 
+  void _toggleBackgroundBlur() {
+    setState(() {
+      isBlurActive = !isBlurActive;
+    });
+    if (kIsWeb) {
+      try {
+        if (isBlurActive) {
+          js.context.callMethod('applyBackgroundBlur', [14]);
+        } else {
+          js.context.callMethod('clearBackgroundEffects', []);
+        }
+      } catch (e) {
+        debugPrint("Error toggling JS background blur: $e");
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isBlurActive ? '✨ Background Blur enabled' : 'Background Blur disabled'),
+        backgroundColor: const Color(0xFF1554A6),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _toggleNoiseCancellation() {
+    setState(() {
+      isNoiseCancellationActive = !isNoiseCancellationActive;
+    });
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('toggleNoiseCancellation', [isNoiseCancellationActive]);
+      } catch (e) {
+        debugPrint("Error toggling JS noise cancellation: $e");
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isNoiseCancellationActive ? '🛡️ AI Noise Shield active' : 'AI Noise Shield disabled'),
+        backgroundColor: const Color(0xFF1554A6),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   // Connect to the self-hosted LiveKit server
   Future<void> _connectToLiveKit(String url, String token) async {
     try {
@@ -3123,7 +3167,12 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: (isVideoOn && _localVideoTrack != null)
-                        ? VideoTrackRenderer(_localVideoTrack!)
+                        ? ImageFiltered(
+                            imageFilter: isBlurActive
+                                ? ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14)
+                                : ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                            child: VideoTrackRenderer(_localVideoTrack!),
+                          )
                         : Container(
                             color: const Color(0xFF1E293B),
                             child: Center(
@@ -3418,34 +3467,41 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                       isMobile: isMobile,
                     ),
                     if (!isMobile) ...[
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       _buildControlButton(
                         icon: Icons.gesture,
                         isActive: isWhiteboardOpen,
                         label: widget.isPip ? null : 'Whiteboard',
                         onTap: () => setState(() => isWhiteboardOpen = !isWhiteboardOpen),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
+                      _buildControlButton(
+                        icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
+                        label: widget.isPip ? null : 'Blur',
+                        isActive: isBlurActive,
+                        onTap: _toggleBackgroundBlur,
+                      ),
+                      const SizedBox(width: 10),
                       _buildControlButton(
                         icon: isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
                         label: widget.isPip ? null : 'Noise Shield',
                         isActive: isNoiseCancellationActive,
                         onTap: _toggleNoiseCancellation,
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       _buildControlButton(
                         icon: Icons.camera_alt,
                         label: widget.isPip ? null : 'Live Photo',
                         onTap: _showBiometricsModal,
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       _buildControlButton(
                         icon: Icons.flip_camera_ios,
                         label: widget.isPip ? null : 'Flip',
                         onTap: _flipCamera,
                       ),
                       if (!widget.isGuest) ...[
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 10),
                         _buildControlButton(
                           icon: Icons.person_add_alt_1,
                           label: widget.isPip ? null : 'Invite',
@@ -3566,6 +3622,16 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                       onTap: () {
                         Navigator.pop(context);
                         setState(() => isWhiteboardOpen = !isWhiteboardOpen);
+                      },
+                    ),
+                    // Blur
+                    _buildSheetOption(
+                      icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
+                      label: 'Blur',
+                      isActive: isBlurActive,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _toggleBackgroundBlur();
                       },
                     ),
                     // Noise Shield

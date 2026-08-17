@@ -119,6 +119,14 @@
       }
     };
 
+    window.applyBackgroundBlur = function(radius) {
+      return window.toggleBackgroundBlur(true);
+    };
+
+    window.clearBackgroundEffects = function() {
+      return window.toggleBackgroundBlur(false);
+    };
+
     window.checkAndFlipCamera = function() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
         return Promise.resolve({ success: false, message: "⚠️ Camera enumeration not supported on this browser." });
