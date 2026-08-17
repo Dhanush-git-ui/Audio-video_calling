@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'dart:js_interop';
-import 'dart:js_util' as js_util;
+import 'dart:js_interop_unsafe';
 import 'package:web/web.dart' as web;
 import 'dart:async';
 
@@ -57,8 +57,8 @@ class SpeechTranslationService {
     if (!kIsWeb || _isInit) return;
     try {
       // Check if SpeechRecognition or webkitSpeechRecognition is available
-      bool hasSpeechRecognition = js_util.hasProperty(_window, 'SpeechRecognition');
-      bool hasWebkitSpeechRecognition = js_util.hasProperty(_window, 'webkitSpeechRecognition');
+      bool hasSpeechRecognition = _window.has('SpeechRecognition');
+      bool hasWebkitSpeechRecognition = _window.has('webkitSpeechRecognition');
 
       if (!hasSpeechRecognition && !hasWebkitSpeechRecognition) {
         debugPrint('SpeechRecognition not supported in this browser.');
@@ -95,20 +95,21 @@ class SpeechTranslationService {
 
       _recognition!.onresult = (JSAny event) {
         try {
-          final resultsList = js_util.getProperty(event, 'results');
-          final length = js_util.getProperty(resultsList, 'length');
+          final eventObj = event as JSObject;
+          final resultsList = eventObj['results'] as JSObject?;
+          final length = (resultsList?['length'] as JSNumber?)?.toDartInt ?? 0;
           
           if (length > 0) {
-            final lastResult = js_util.getProperty(resultsList, length - 1);
-            final isFinal = js_util.getProperty(lastResult, 'isFinal') ?? false;
+            final lastResult = resultsList?['${length - 1}'] as JSObject?;
+            final isFinal = (lastResult?['isFinal'] as JSBoolean?)?.toDart ?? false;
             
-            final alternative = js_util.getProperty(lastResult, 0);
-            final transcript = js_util.getProperty(alternative, 'transcript');
+            final alternative = lastResult?['0'] as JSObject?;
+            final transcript = (alternative?['transcript'] as JSString?)?.toDart ?? '';
             
             debugPrint('Transcript received: "$transcript" (isFinal: $isFinal)');
             
             if (onLocalSpeech != null) {
-               onLocalSpeech!(transcript.toString().trim(), isFinal);
+               onLocalSpeech!(transcript.trim(), isFinal);
             }
           }
         } catch (e) {
@@ -136,7 +137,8 @@ class SpeechTranslationService {
       }.toJS;
 
       _recognition!.onerror = (JSAny event) {
-        final error = js_util.getProperty(event, 'error');
+        final eventObj = event as JSObject;
+        final error = (eventObj['error'] as JSString?)?.toDart ?? '';
         debugPrint('SpeechRecognition error: $error');
         
         if (error == 'not-allowed') {

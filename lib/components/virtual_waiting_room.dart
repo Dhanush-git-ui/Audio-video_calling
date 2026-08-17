@@ -706,20 +706,17 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     final isDesktop = screenWidth > 850;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF080C14),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1E1E38)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: Color(0xFF080C14),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
               padding: EdgeInsets.all(screenWidth < 400 ? 12.0 : 24.0),
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 500),
+                constraints: BoxConstraints(maxWidth: isDesktop ? 1040 : 520),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -727,20 +724,49 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.spa, color: Colors.indigoAccent, size: 28),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'AuraCare',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.0,
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF6366F1).withOpacity(0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
+                          child: const Icon(Icons.monitor_heart, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'AuraCare CHAV',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFF8FAFC),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            Text(
+                              'Interactive Consultation & Pre-Flight Setup',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: const Color(0xFF94A3B8).withOpacity(0.8),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ).animate().fadeIn().slideY(begin: -0.2),
-                    const SizedBox(height: 32),
+                    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.15, curve: Curves.easeOutCubic),
+                    const SizedBox(height: 28),
 
                     if (showAccessCodeScreen)
                       _buildAccessCodeEntrySection()

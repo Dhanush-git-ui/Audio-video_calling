@@ -166,12 +166,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             const Text(
                               'Account Type',
-                              style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
+                              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
                             ),
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFF0F172A),
                                 borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0x3364748B)),
                               ),
                               padding: const EdgeInsets.all(3),
                               child: Row(
@@ -183,47 +184,109 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
+
+                        // Quick Demo Login Pills
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0x226366F1)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.flash_on, color: Color(0xFFF59E0B), size: 14),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    '1-Click Demo Profiles',
+                                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Provider.of<UserSessionProvider>(context, listen: false)
+                                            .login('Dr. Amanulla Belg', 'Doctor');
+                                        context.go('/');
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        side: const BorderSide(color: Color(0xFF6366F1)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: const Text('Dr. Belg (Doctor)', style: TextStyle(color: Color(0xFF818CF8), fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Provider.of<UserSessionProvider>(context, listen: false)
+                                            .login('James Carter', 'Patient');
+                                        context.go('/pre-consultation');
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        side: const BorderSide(color: Color(0xFF06B6D4)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: const Text('James (Patient)', style: TextStyle(color: Color(0xFF22D3EE), fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
                         // Phone Input
                         const Text(
                           'Phone Number',
-                          style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(color: Color(0xFFF8FAFC)),
                           decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.phone_iphone, color: Colors.white30),
-                            hintText: 'Enter 10-digit number',
-                            hintStyle: const TextStyle(color: Colors.white30),
+                            prefixIcon: const Icon(Icons.phone_iphone, color: Color(0xFF64748B)),
+                            hintText: 'Enter 10-digit phone number',
+                            hintStyle: const TextStyle(color: Color(0xFF475569)),
                             filled: true,
                             fillColor: const Color(0xFF0F172A),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                              borderSide: const BorderSide(color: Color(0x3364748B)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.indigoAccent, width: 2),
+                              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 24),
 
                         // Action Button
                         Container(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                             gradient: const LinearGradient(
-                              colors: [Colors.indigoAccent, Color(0xFF4F46E5)],
+                              colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.indigoAccent.withOpacity(0.3),
-                                blurRadius: 12,
+                                color: const Color(0xFF6366F1).withOpacity(0.35),
+                                blurRadius: 16,
                                 offset: const Offset(0, 4),
                               )
                             ],
@@ -231,20 +294,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _sendOtp,
                             style: ElevatedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(52),
+                              minimumSize: const Size.fromHeight(48),
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: _isLoading
                                 ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
+                                    width: 18,
+                                    height: 18,
                                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                   )
                                 : const Text(
                                     'Send Verification Code',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
                                   ),
                           ),
                         ),

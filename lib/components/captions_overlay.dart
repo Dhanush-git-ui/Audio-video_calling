@@ -33,10 +33,18 @@ class CaptionsOverlay extends StatelessWidget {
                   maxWidth: constraints.maxWidth * 0.7, // 70% width
                 ),
                 margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.65), // Semi-transparent black
-                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF080C14).withOpacity(0.88),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x3364748B), width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -49,7 +57,7 @@ class CaptionsOverlay extends StatelessWidget {
                         child: Text(
                           errorText,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Color(0xFFFB7185), fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                       ),
 

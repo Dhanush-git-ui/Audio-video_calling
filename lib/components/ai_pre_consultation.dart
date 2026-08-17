@@ -213,38 +213,74 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
-              color: Color(0xFF1E293B),
-              border: Border(top: BorderSide(color: Colors.white12)),
+              color: Color(0xFF0F172A),
+              border: Border(top: BorderSide(color: Color(0x2264748B))),
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _inputController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Type your response...',
-                      hintStyle: const TextStyle(color: Colors.white30),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
+                // Quick Suggestion Chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildQuickChip('Fever & Cough'),
+                      const SizedBox(width: 8),
+                      _buildQuickChip('Mild Headache'),
+                      const SizedBox(width: 8),
+                      _buildQuickChip('2-3 Days'),
+                      const SizedBox(width: 8),
+                      _buildQuickChip('No medications'),
+                      const SizedBox(width: 8),
+                      _buildQuickChip('No known allergies'),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.indigoAccent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _inputController,
+                        style: const TextStyle(color: Color(0xFFF8FAFC)),
+                        decoration: InputDecoration(
+                          hintText: 'Type your response or select a chip...',
+                          hintStyle: const TextStyle(color: Color(0xFF475569)),
+                          filled: true,
+                          fillColor: const Color(0xFF1E293B),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0x2264748B)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+                          ),
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                        onPressed: _sendMessage,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -320,6 +356,31 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
             _buildDot(150),
             _buildDot(300),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickChip(String label) {
+    return GestureDetector(
+      onTap: () {
+        _inputController.text = label;
+        _sendMessage();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x336366F1)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFC7D2FE),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

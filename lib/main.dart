@@ -203,13 +203,66 @@ class ChavApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => UserSessionProvider(),
       child: MaterialApp.router(
-        title: 'CHAV Flutter',
-        theme: ThemeData.dark().copyWith(
-          scaffoldBackgroundColor: const Color(0xFF0F172A),
-          primaryColor: Colors.indigo,
+        title: 'AuraCare CHAV | Telehealth & Biometric Intelligence',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: const Color(0xFF080C14),
+          primaryColor: const Color(0xFF6366F1),
+          canvasColor: const Color(0xFF0F172A),
+          cardColor: const Color(0xFF0F172A),
           colorScheme: const ColorScheme.dark(
-            primary: Colors.indigoAccent,
-            secondary: Colors.pinkAccent,
+            primary: Color(0xFF6366F1),
+            primaryContainer: Color(0xFF4338CA),
+            secondary: Color(0xFF06B6D4),
+            secondaryContainer: Color(0xFF0E7490),
+            tertiary: Color(0xFF10B981),
+            surface: Color(0xFF0F172A),
+            surfaceContainerHighest: Color(0xFF1E293B),
+            error: Color(0xFFF43F5E),
+            onPrimary: Colors.white,
+            onSurface: Color(0xFFF8FAFC),
+          ),
+          textTheme: const TextTheme(
+            displayLarge: TextStyle(color: Color(0xFFF8FAFC), fontWeight: FontWeight.w700, letterSpacing: -0.5),
+            headlineLarge: TextStyle(color: Color(0xFFF8FAFC), fontWeight: FontWeight.w700, letterSpacing: -0.4),
+            headlineMedium: TextStyle(color: Color(0xFFF8FAFC), fontWeight: FontWeight.w600, letterSpacing: -0.3),
+            titleLarge: TextStyle(color: Color(0xFFF8FAFC), fontWeight: FontWeight.w600, letterSpacing: -0.2),
+            titleMedium: TextStyle(color: Color(0xFFF1F5F9), fontWeight: FontWeight.w600),
+            bodyLarge: TextStyle(color: Color(0xFFE2E8F0), fontSize: 14, height: 1.5),
+            bodyMedium: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.4),
+            labelSmall: TextStyle(color: Color(0xFF64748B), fontSize: 10, letterSpacing: 0.5, fontWeight: FontWeight.w600),
+          ),
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+              TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+              TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+              TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+              TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+            },
+          ),
+          dialogTheme: DialogThemeData(
+            backgroundColor: const Color(0xFF0F172A),
+            elevation: 16,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Color(0x3364748B)),
+            ),
+          ),
+          cardTheme: CardThemeData(
+            color: const Color(0xFF0F172A),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0x22FFFFFF)),
+            ),
+          ),
+          dividerTheme: const DividerThemeData(
+            color: Color(0x1FFFFFFF),
+            thickness: 1,
+            space: 1,
           ),
         ),
         routerConfig: _router,
