@@ -167,25 +167,25 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: const BoxDecoration(
-            color: Color(0xFF161E2E),
-            border: Border(bottom: BorderSide(color: Colors.white12)),
+            color: Color(0xFF111C33),
+            border: Border(bottom: BorderSide(color: Color(0x331554A6))),
           ),
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: Colors.pinkAccent.withOpacity(0.15),
-                child: const Icon(Icons.psychology, color: Colors.pinkAccent),
+                backgroundColor: const Color(0xFF78C02B).withOpacity(0.15),
+                child: const Icon(Icons.health_and_safety, color: Color(0xFF78C02B)),
               ),
               const SizedBox(width: 14),
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'AI Consultation Assistant',
+                    'CallHealth AI Assistant',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   SizedBox(height: 2),
-                  Text('Pre-consultation clinical check', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  Text('Pre-consultation clinical assessment', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
                 ],
               ),
             ],
@@ -213,8 +213,8 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
-              color: Color(0xFF0F172A),
-              border: Border(top: BorderSide(color: Color(0x2264748B))),
+              color: Color(0xFF111C33),
+              border: Border(top: BorderSide(color: Color(0x331554A6))),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -245,16 +245,20 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
                         style: const TextStyle(color: Color(0xFFF8FAFC)),
                         decoration: InputDecoration(
                           hintText: 'Type your response or select a chip...',
-                          hintStyle: const TextStyle(color: Color(0xFF475569)),
+                          hintStyle: const TextStyle(color: Color(0xFF64748B)),
                           filled: true,
-                          fillColor: const Color(0xFF1E293B),
+                          fillColor: const Color(0xFF0A1120),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0x2264748B)),
+                            borderSide: const BorderSide(color: Color(0x331554A6)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0x331554A6)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+                            borderSide: const BorderSide(color: Color(0xFF1554A6), width: 1.5),
                           ),
                         ),
                         onSubmitted: (_) => _sendMessage(),
@@ -264,12 +268,12 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
                     Container(
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                          colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6366F1).withOpacity(0.4),
+                            color: const Color(0xFF1554A6).withOpacity(0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 2),
                           ),
@@ -288,19 +292,18 @@ class _AiPreConsultationState extends State<AiPreConsultation> {
         else
           Container(
             padding: const EdgeInsets.all(20),
-            color: const Color(0xFF1E293B),
+            color: const Color(0xFF111C33),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
                   onPressed: () {
-                    // Send to standard waiting room with the room state preset
-                    context.go('/?room=pre-consult-lobby');
+                    context.go('/');
                   },
-                  icon: const Icon(Icons.meeting_room, color: Colors.white),
-                  label: const Text('Enter Consultation Lobby', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.meeting_room_outlined, color: Colors.white),
+                  label: const Text('Proceed to Waiting Room', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pinkAccent,
+                    backgroundColor: const Color(0xFF1554A6),
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

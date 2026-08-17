@@ -725,40 +725,68 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFF111C33),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0x331554A6)),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF6366F1).withOpacity(0.35),
+                                color: const Color(0xFF1554A6).withOpacity(0.3),
                                 blurRadius: 16,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.monitor_heart, color: Colors.white, size: 22),
+                          child: const Icon(Icons.health_and_safety, color: Color(0xFF78C02B), size: 24),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'AuraCare CHAV',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFF8FAFC),
-                                letterSpacing: -0.3,
-                              ),
+                            Row(
+                              children: [
+                                const Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'Call',
+                                        style: TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF2563EB),
+                                          letterSpacing: -0.5,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'Health',
+                                        style: TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF78C02B),
+                                          letterSpacing: -0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF1554A6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.add, color: Colors.white, size: 12),
+                                ),
+                              ],
                             ),
-                            Text(
-                              'Interactive Consultation & Pre-Flight Setup',
+                            const Text(
+                              'Everything about health | Pre-Flight Setup',
                               style: TextStyle(
-                                fontSize: 11,
-                                color: const Color(0xFF94A3B8).withOpacity(0.8),
+                                fontSize: 12,
+                                color: Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w500,
                                 letterSpacing: 0.2,
                               ),
                             ),
@@ -1134,8 +1162,11 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     final isSmall = screenWidth < 400;
 
     return Card(
-      color: const Color(0xFF1E293B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      color: const Color(0xFF111C33),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Color(0x331554A6)),
+      ),
       elevation: 12,
       child: Padding(
         padding: EdgeInsets.all(isSmall ? 16.0 : 28.0),
@@ -1153,20 +1184,20 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isDocOnline
-                          ? [const Color(0xFF059669).withOpacity(0.25), const Color(0xFF10B981).withOpacity(0.1)]
-                          : [Colors.orangeAccent.withOpacity(0.2), Colors.deepOrange.withOpacity(0.08)],
+                          ? [const Color(0xFF78C02B).withOpacity(0.2), const Color(0xFF558B2F).withOpacity(0.08)]
+                          : [const Color(0xFF1554A6).withOpacity(0.2), const Color(0xFF0D47A1).withOpacity(0.08)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
-                      width: 1.8,
+                      color: isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF2563EB),
+                      width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: (isDocOnline ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.3),
-                        blurRadius: 20,
+                        color: (isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF1554A6)).withOpacity(0.2),
+                        blurRadius: 16,
                         spreadRadius: 1,
                       ),
                     ],
@@ -1176,19 +1207,19 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isDocOnline ? Colors.greenAccent.withOpacity(0.25) : Colors.orangeAccent.withOpacity(0.25),
+                          color: (isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF1554A6)).withOpacity(0.25),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: (isDocOnline ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.4),
-                              blurRadius: 12,
+                              color: (isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF1554A6)).withOpacity(0.35),
+                              blurRadius: 10,
                             ),
                           ],
                         ),
                         child: Icon(
-                          isDocOnline ? Icons.notifications_active_rounded : Icons.notifications_paused_rounded,
-                          color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
-                          size: 26,
+                          isDocOnline ? Icons.notifications_active_rounded : Icons.health_and_safety_outlined,
+                          color: isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF60A5FA),
+                          size: 24,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -1199,38 +1230,38 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                             Row(
                               children: [
                                 Text(
-                                  isDocOnline ? '🔔 DOCTOR IS ONLINE & AVAILABLE!' : '⏳ DOCTOR IS CURRENTLY OFFLINE',
+                                  isDocOnline ? 'DOCTOR IS ONLINE & AVAILABLE' : 'DOCTOR IS CURRENTLY OFFLINE',
                                   style: TextStyle(
-                                    color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                                    color: isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF93C5FD),
                                     fontWeight: FontWeight.w900,
-                                    fontSize: 13,
-                                    letterSpacing: 0.8,
+                                    fontSize: 12,
+                                    letterSpacing: 0.6,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
-                                  width: 10,
-                                  height: 10,
+                                  width: 8,
+                                  height: 8,
                                   decoration: BoxDecoration(
-                                    color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
+                                    color: isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF60A5FA),
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: isDocOnline ? Colors.greenAccent : Colors.orangeAccent,
-                                        blurRadius: 8,
-                                        spreadRadius: 2,
+                                        color: isDocOnline ? const Color(0xFF78C02B) : const Color(0xFF60A5FA),
+                                        blurRadius: 6,
+                                        spreadRadius: 1,
                                       )
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
                             Text(
                               isDocOnline
-                                  ? 'Dr. AuraCare is active. Click Join Meeting below to start your encrypted consultation.'
-                                  : 'The doctor is currently away. Toggle the ONLINE switch at top right or wait for doctor alert.',
-                              style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.35, fontWeight: FontWeight.w500),
+                                  ? 'Dr. Amanulla Belg is active. Click Start Consultation below to begin.'
+                                  : 'The doctor is currently away. Toggle the ONLINE switch at top right or wait for alert.',
+                              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12, height: 1.35, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -1246,13 +1277,13 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.indigoAccent.withOpacity(0.15),
+                  color: const Color(0xFF1554A6).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+                  border: Border.all(color: const Color(0x331554A6)),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.security, color: Colors.greenAccent),
+                    Icon(Icons.security, color: Color(0xFF78C02B)),
                     SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -1263,7 +1294,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: Colors.greenAccent,
+                              color: Color(0xFF78C02B),
                             ),
                           ),
                           SizedBox(height: 2),
@@ -1285,7 +1316,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
             ] else ...[
               Row(
                 children: [
-                  const Icon(Icons.meeting_room_outlined, color: Colors.indigoAccent, size: 24),
+                  const Icon(Icons.health_and_safety, color: Color(0xFF78C02B), size: 22),
                   const SizedBox(width: 8),
                   Text(
                     'Setup Lobby',
@@ -1303,26 +1334,30 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
             // Name Field
             const Text(
               'Your Name',
-              style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.person_outline, color: Colors.white30),
+                prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF64748B)),
                 hintText: 'Enter your name',
-                hintStyle: const TextStyle(color: Colors.white30),
+                hintStyle: const TextStyle(color: Color(0xFF64748B)),
                 filled: true,
-                fillColor: const Color(0xFF0F172A),
+                fillColor: const Color(0xFF0A1120),
                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isSmall ? 10 : 14),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                  borderSide: const BorderSide(color: Color(0x331554A6)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0x331554A6)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.indigoAccent, width: 2),
+                  borderSide: const BorderSide(color: Color(0xFF1554A6), width: 2),
                 ),
               ),
             ),
@@ -1332,26 +1367,30 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
             if (!isGuestInvited) ...[
               const Text(
                 'Room ID',
-                style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _roomController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.meeting_room, color: Colors.white30),
+                  prefixIcon: const Icon(Icons.meeting_room, color: Color(0xFF64748B)),
                   hintText: 'Enter room name',
-                  hintStyle: const TextStyle(color: Colors.white30),
+                  hintStyle: const TextStyle(color: Color(0xFF64748B)),
                   filled: true,
-                  fillColor: const Color(0xFF0F172A),
+                  fillColor: const Color(0xFF0A1120),
                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isSmall ? 10 : 14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: const BorderSide(color: Color(0x331554A6)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0x331554A6)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.indigoAccent, width: 2),
+                    borderSide: const BorderSide(color: Color(0xFF1554A6), width: 2),
                   ),
                 ),
               ),
@@ -1363,12 +1402,13 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                 children: [
                   const Text(
                     'Join Role',
-                    style: TextStyle(fontSize: 12, color: Colors.white60, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold),
                   ),
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
+                      color: const Color(0xFF0A1120),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0x221554A6)),
                     ),
                     padding: const EdgeInsets.all(4),
                     child: Row(
@@ -1548,11 +1588,11 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 gradient: const LinearGradient(
-                  colors: [Colors.indigoAccent, Color(0xFF4F46E5)],
+                  colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.indigoAccent.withOpacity(0.35),
+                    color: const Color(0xFF1554A6).withOpacity(0.35),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),

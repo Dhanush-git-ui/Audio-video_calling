@@ -22,15 +22,15 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     final showAppBar = widget.child.toString().contains('ConsultationView') == false;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080C14),
+      backgroundColor: const Color(0xFF0A1120),
       appBar: showAppBar
           ? PreferredSize(
-              preferredSize: const Size.fromHeight(64),
+              preferredSize: const Size.fromHeight(68),
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A).withOpacity(0.9),
+                  color: const Color(0xFF111C33).withOpacity(0.95),
                   border: const Border(
-                    bottom: BorderSide(color: Color(0x2264748B), width: 1),
+                    bottom: BorderSide(color: Color(0x2A1554A6), width: 1),
                   ),
                 ),
                 child: SafeArea(
@@ -38,43 +38,76 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
                       children: [
-                        // Brand Logo
+                        // CallHealth Brand Logo
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
+                            color: const Color(0xFF0A1120),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0x331554A6)),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF6366F1).withOpacity(0.3),
+                                color: const Color(0xFF1554A6).withOpacity(0.25),
                                 blurRadius: 12,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.monitor_heart, color: Colors.white, size: 18),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.health_and_safety, color: Color(0xFF78C02B), size: 20),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'AuraCare CHAV',
-                              style: TextStyle(
-                                color: Color(0xFFF8FAFC),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                letterSpacing: -0.2,
-                              ),
+                            Row(
+                              children: [
+                                const Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'Call',
+                                        style: TextStyle(
+                                          color: Color(0xFF2563EB),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                          letterSpacing: -0.5,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'Health',
+                                        style: TextStyle(
+                                          color: Color(0xFF78C02B),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                          letterSpacing: -0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF1554A6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.add, color: Colors.white, size: 10),
+                                ),
+                              ],
                             ),
-                            Text(
-                              'Clinical Telemedicine & Biometrics',
+                            const Text(
+                              'Everything about health',
                               style: TextStyle(
-                                color: const Color(0xFF94A3B8).withOpacity(0.8),
+                                color: Color(0xFF94A3B8),
                                 fontSize: 10,
+                                fontWeight: FontWeight.w500,
                                 letterSpacing: 0.2,
                               ),
                             ),
@@ -87,16 +120,16 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                           children: [
                             if (sessionProvider.userRole.toLowerCase() == 'doctor') ...[
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                                 decoration: BoxDecoration(
                                   color: isOnline
-                                      ? const Color(0xFF10B981).withOpacity(0.12)
-                                      : const Color(0xFFF43F5E).withOpacity(0.12),
+                                      ? const Color(0xFF78C02B).withOpacity(0.15)
+                                      : const Color(0xFFE11D48).withOpacity(0.12),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
                                     color: isOnline
-                                        ? const Color(0xFF10B981).withOpacity(0.3)
-                                        : const Color(0xFFF43F5E).withOpacity(0.3),
+                                        ? const Color(0xFF78C02B).withOpacity(0.4)
+                                        : const Color(0xFFE11D48).withOpacity(0.3),
                                   ),
                                 ),
                                 child: Row(
@@ -105,11 +138,11 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                                       width: 8,
                                       height: 8,
                                       decoration: BoxDecoration(
-                                        color: isOnline ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
+                                        color: isOnline ? const Color(0xFF78C02B) : const Color(0xFFE11D48),
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: (isOnline ? const Color(0xFF10B981) : const Color(0xFFF43F5E))
+                                            color: (isOnline ? const Color(0xFF78C02B) : const Color(0xFFE11D48))
                                                 .withOpacity(0.6),
                                             blurRadius: 6,
                                           ),
@@ -120,7 +153,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                                     Text(
                                       isOnline ? 'DOCTOR ONLINE' : 'DOCTOR OFFLINE',
                                       style: TextStyle(
-                                        color: isOnline ? const Color(0xFF34D399) : const Color(0xFFFB7185),
+                                        color: isOnline ? const Color(0xFF78C02B) : const Color(0xFFFB7185),
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                         letterSpacing: 0.4,
@@ -132,10 +165,10 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                               const SizedBox(width: 8),
                               Switch(
                                 value: isOnline,
-                                activeColor: const Color(0xFF10B981),
-                                activeTrackColor: const Color(0xFF065F46),
+                                activeColor: const Color(0xFF78C02B),
+                                activeTrackColor: const Color(0xFF2E5912),
                                 inactiveThumbColor: const Color(0xFF64748B),
-                                inactiveTrackColor: const Color(0xFF1E293B),
+                                inactiveTrackColor: const Color(0xFF162544),
                                 onChanged: (val) {
                                   sessionProvider.setOnlineStatus(val);
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -145,7 +178,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
                                             ? 'Doctor availability status: ONLINE.'
                                             : 'Doctor presence status: OFFLINE.',
                                       ),
-                                      backgroundColor: val ? const Color(0xFF4F46E5) : const Color(0xFFE11D48),
+                                      backgroundColor: val ? const Color(0xFF1554A6) : const Color(0xFFE11D48),
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
@@ -162,10 +195,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
             )
           : null,
       body: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF080C14),
-          image: DecorationGradient(),
-        ),
+        color: const Color(0xFF0A1120),
         child: widget.child,
       ).animate().fadeIn(duration: 250.ms, curve: Curves.easeOutCubic),
     );

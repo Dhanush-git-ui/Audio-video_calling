@@ -14,7 +14,7 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF0F172A), // Slate 900
+      color: const Color(0xFF0A1120), // CallHealth Deep Navy
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -22,11 +22,18 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B), // Slate 800
+                color: const Color(0xFF111C33), // CallHealth Slate Navy
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(color: const Color(0x331554A6)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1554A6).withOpacity(0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,9 +41,20 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                   Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(color: Color(0xFF334155), shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1554A6), Color(0xFF0D47A1)],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1554A6).withOpacity(0.4),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
                     alignment: Alignment.center,
-                    child: const Text('JC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const Text('JC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -48,27 +66,31 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                           spacing: 12,
                           runSpacing: 4,
                           children: [
-                            const Text('James Carter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                            const Text('James Carter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFFF8FAFC), letterSpacing: -0.2)),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
-                              child: const Text('P-20240125-001', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1554A6).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0x331554A6)),
+                              ),
+                              child: const Text('P-20240125-001', style: TextStyle(color: Color(0xFF93C5FD), fontSize: 10, fontWeight: FontWeight.w600)),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
-                        const Text('Pain near left chest, Pelvic salinity', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        const Text('Pain near left chest, Pelvic salinity', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
                             _buildTag('28 Yrs - Male'),
-                            _buildTag('O+ve', color: Colors.redAccent.withOpacity(0.2), textColor: Colors.redAccent),
-                            _buildTag('Cardiology'),
+                            _buildTag('O+ve', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
+                            _buildTag('Cardiology', color: const Color(0xFF1554A6).withOpacity(0.18), textColor: const Color(0xFF93C5FD)),
                             _buildTag('25 Jan 2025, 07:00 AM'),
-                            _buildTag('Online Consultation'),
-                            _buildTag('GPS: 40.7128° N, 74.0060° W', color: Colors.greenAccent.withOpacity(0.15), textColor: Colors.greenAccent),
+                            _buildTag('Online Consultation', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
+                            _buildTag('GPS: 40.7128° N, 74.0060° W', color: const Color(0xFF1554A6).withOpacity(0.15), textColor: const Color(0xFF60A5FA)),
                           ],
                         ),
                       ],
@@ -82,7 +104,9 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
           // Tabs
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white12))),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0x221554A6))),
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -95,19 +119,19 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                   return GestureDetector(
                     onTap: () => setState(() => activeTabIndex = idx),
                     child: Container(
-                      margin: const EdgeInsets.only(right: 32), // Spacing between tabs
-                      padding: const EdgeInsets.only(bottom: 12), // Only bottom padding for the underline
+                      margin: const EdgeInsets.only(right: 32),
+                      padding: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: isActive ? const Color(0xFF4F46E5) : Colors.transparent, width: 3), // Thicker blue line
+                          bottom: BorderSide(color: isActive ? const Color(0xFF78C02B) : Colors.transparent, width: 3),
                         ),
                       ),
                       child: Text(
                         title,
                         style: TextStyle(
-                          color: isActive ? const Color(0xFF6366F1) : Colors.white54, // Brighter indigo
-                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                          fontSize: 15,
+                          color: isActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -130,11 +154,11 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color ?? Colors.white10,
+        color: color ?? const Color(0xFF162544),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: const Color(0x331554A6)),
       ),
-      child: Text(text, style: TextStyle(color: textColor ?? Colors.white70, fontSize: 10)),
+      child: Text(text, style: TextStyle(color: textColor ?? const Color(0xFFCBD5E1), fontSize: 10, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -144,9 +168,9 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('VITALS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2))
-              .animate().fadeIn().slideX(begin: -0.2),
-          const SizedBox(height: 24),
+          const Text('VITALS & BIOMETRICS', style: TextStyle(color: Color(0xFFF8FAFC), fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 1.0))
+              .animate().fadeIn().slideX(begin: -0.1),
+          const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
               int crossAxisCount = 1;
@@ -155,8 +179,8 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
               
               if (constraints.maxWidth > 1100) {
                 crossAxisCount = 6;
-                childAspectRatio = 1.0; // 6 columns, keep them relatively square or slightly tall
-                valueFontSize = 46.0; // Make numericals bigger in Form View
+                childAspectRatio = 1.0;
+                valueFontSize = 46.0;
               } else if (constraints.maxWidth > 800) {
                 crossAxisCount = 3;
                 childAspectRatio = 1.6;
@@ -176,27 +200,27 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
                 children: [
-                  VitalCard(title: 'BLOOD\nPRESSURE', value: '120/80', unit: 'mmHg', colors: [Colors.pinkAccent, Colors.redAccent], valueFontSize: valueFontSize),
-                  VitalCard(title: 'HEART RATE', value: '72', unit: 'bpm', colors: [Colors.amber, Colors.orangeAccent], valueFontSize: valueFontSize),
-                  VitalCard(title: 'TEMPERATURE', value: '98.6', unit: '°F', colors: [Colors.blueAccent, Colors.indigoAccent], valueFontSize: valueFontSize),
-                  VitalCard(title: 'SPO2', value: '98', unit: '%', colors: [Colors.tealAccent, Colors.greenAccent], valueFontSize: valueFontSize),
-                  VitalCard(title: 'RESP. RATE', value: '18', unit: 'br/min', colors: [Colors.purpleAccent, Colors.deepPurpleAccent], valueFontSize: valueFontSize),
-                  VitalCard(title: 'WEIGHT', value: '74', unit: 'kg', colors: [Colors.indigo, Colors.blue], valueFontSize: valueFontSize),
+                  VitalCard(title: 'BLOOD\nPRESSURE', value: '120/80', unit: 'mmHg', colors: const [Color(0xFF1554A6), Color(0xFF2563EB)], valueFontSize: valueFontSize),
+                  VitalCard(title: 'HEART RATE', value: '72', unit: 'bpm', colors: const [Color(0xFF78C02B), Color(0xFF4ADE80)], valueFontSize: valueFontSize),
+                  VitalCard(title: 'TEMPERATURE', value: '98.6', unit: '°F', colors: const [Color(0xFF1554A6), Color(0xFF38BDF8)], valueFontSize: valueFontSize),
+                  VitalCard(title: 'SPO2', value: '98', unit: '%', colors: const [Color(0xFF78C02B), Color(0xFF22C55E)], valueFontSize: valueFontSize),
+                  VitalCard(title: 'RESP. RATE', value: '18', unit: 'br/min', colors: const [Color(0xFF1554A6), Color(0xFF60A5FA)], valueFontSize: valueFontSize),
+                  VitalCard(title: 'WEIGHT', value: '74', unit: 'kg', colors: const [Color(0xFF78C02B), Color(0xFF84CC16)], valueFontSize: valueFontSize),
                 ],
               );
             }
           ),
           const SizedBox(height: 24),
-          const Divider(color: Colors.white12),
+          const Divider(color: Color(0x221554A6)),
           const SizedBox(height: 24),
-          const Text('AI EMOTION & SENTIMENT ANALYSIS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2)),
+          const Text('AI EMOTION & SENTIMENT ANALYSIS', style: TextStyle(color: Color(0xFFF8FAFC), fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1.0)),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: const Color(0xFF111C33),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.pinkAccent.withOpacity(0.2)),
+              border: Border.all(color: const Color(0x3378C02B)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,34 +230,35 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.face_retouching_natural, color: Colors.pinkAccent, size: 20),
+                        Icon(Icons.psychology, color: Color(0xFF78C02B), size: 20),
                         SizedBox(width: 8),
                         Text('Emotion Tracker', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.pinkAccent.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(6),
+                        color: const Color(0xFF78C02B).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0x3378C02B)),
                       ),
-                      child: const Text('CALM / ANXIOUS', style: TextStyle(color: Colors.pinkAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: const Text('CALM / STABLE', style: TextStyle(color: Color(0xFF78C02B), fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 const Text(
                   'Patient Tone: Expressing concern about chest discomfort, mild anxiety. Speech pattern is coherent and logical.',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                  style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.4),
                 ),
                 const SizedBox(height: 20),
-                const Text('SENTIMENT ANALYSIS BREAKDOWN', style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                const Text('SENTIMENT ANALYSIS BREAKDOWN', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                 const SizedBox(height: 12),
-                _buildSentimentBar('Normal / Calm Tone', 0.85, Colors.greenAccent),
+                _buildSentimentBar('Normal / Calm Tone', 0.85, const Color(0xFF78C02B)),
                 const SizedBox(height: 8),
-                _buildSentimentBar('Mild Anxiety', 0.12, Colors.orangeAccent),
+                _buildSentimentBar('Mild Anxiety', 0.12, const Color(0xFF2563EB)),
                 const SizedBox(height: 8),
-                _buildSentimentBar('Pain / Discomfort Indicator', 0.03, Colors.redAccent),
+                _buildSentimentBar('Pain / Discomfort Indicator', 0.03, const Color(0xFFE11D48)),
               ],
             ),
           ).animate().fadeIn().slideY(begin: 0.1),
@@ -635,10 +660,14 @@ class _VitalCardState extends State<VitalCard> {
             )
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            color: const Color(0xFF161E2E), // Dark slate interior
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF111C33),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0x221554A6)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
             child: Stack(
               children: [
                 // Top Glowing Edge

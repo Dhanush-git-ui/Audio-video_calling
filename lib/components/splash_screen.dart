@@ -26,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF080C14),
+      backgroundColor: const Color(0xFF0A1120),
       body: Stack(
         children: [
           // Ambient Aura Glows
@@ -38,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF6366F1).withOpacity(0.12),
+                color: const Color(0xFF1554A6).withOpacity(0.18),
               ),
             ),
           ),
@@ -50,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 380,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF06B6D4).withOpacity(0.1),
+                color: const Color(0xFF78C02B).withOpacity(0.12),
               ),
             ),
           ),
@@ -64,14 +64,14 @@ class _SplashScreenState extends State<SplashScreen> {
                   height: 100,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+                      colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF6366F1).withOpacity(0.4),
+                        color: const Color(0xFF1554A6).withOpacity(0.4),
                         blurRadius: 36,
                         spreadRadius: 4,
                         offset: const Offset(0, 8),
@@ -83,12 +83,12 @@ class _SplashScreenState extends State<SplashScreen> {
                     width: 92,
                     height: 92,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
+                      color: const Color(0xFF111C33),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: const Icon(
-                      Icons.monitor_heart,
-                      color: Color(0xFF6366F1),
+                      Icons.health_and_safety,
+                      color: Color(0xFF78C02B),
                       size: 46,
                     ),
                   ),
@@ -98,24 +98,53 @@ class _SplashScreenState extends State<SplashScreen> {
                 const SizedBox(height: 32),
 
                 // Main Title
-                const Text(
-                  'AuraCare CHAV',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFF8FAFC),
-                    letterSpacing: -0.5,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Call',
+                            style: TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF2563EB),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'Health',
+                            style: TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF78C02B),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1554A6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add, color: Colors.white, size: 16),
+                    ),
+                  ],
                 ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.15, curve: Curves.easeOutCubic),
                 const SizedBox(height: 10),
 
-                // Telemetry Tagline Pill
+                // Tagline Pill
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B).withOpacity(0.8),
+                    color: const Color(0xFF111C33),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0x3364748B)),
+                    border: Border.all(color: const Color(0x331554A6)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -124,18 +153,18 @@ class _SplashScreenState extends State<SplashScreen> {
                         width: 6,
                         height: 6,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF10B981),
+                          color: Color(0xFF78C02B),
                           shape: BoxShape.circle,
                         ),
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        'SECURE CLINICAL TELEMEDICINE & BIOMETRICS',
+                        'Everything about health',
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF94A3B8),
-                          letterSpacing: 0.8,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFCBD5E1),
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
@@ -151,8 +180,8 @@ class _SplashScreenState extends State<SplashScreen> {
                     borderRadius: BorderRadius.circular(4),
                     child: const LinearProgressIndicator(
                       minHeight: 3,
-                      backgroundColor: Color(0xFF1E293B),
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                      backgroundColor: Color(0xFF111C33),
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF78C02B)),
                     ),
                   ),
                 ).animate().fadeIn(delay: 450.ms),

@@ -107,22 +107,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final isSmall = screenWidth < 450;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF0A1120),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1E1E38)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        color: const Color(0xFF0A1120),
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Card(
-                color: const Color(0xFF1E293B),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                color: const Color(0xFF111C33),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: const BorderSide(color: Color(0x331554A6)),
+                ),
                 elevation: 16,
                 child: Padding(
                   padding: EdgeInsets.all(isSmall ? 20.0 : 32.0),
@@ -130,33 +128,56 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Header
+                      // CallHealth Header Logo
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.spa, color: Colors.indigoAccent, size: 28),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'AuraCare',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                          const Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Call',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF2563EB),
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'Health',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF78C02B),
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1554A6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.add, color: Colors.white, size: 14),
                           ),
                         ],
                       ).animate().fadeIn().slideY(begin: -0.2),
-                      const SizedBox(height: 12),
-                      Text(
-                        _otpSent ? 'Verify Identity' : 'Secure Login Portal',
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Everything about health',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w600,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 28),
 
                       // Step 1: Phone Login
                       if (!_otpSent) ...[
@@ -170,9 +191,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             Container(
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
+                                color: const Color(0xFF0A1120),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0x3364748B)),
+                                border: Border.all(color: const Color(0x331554A6)),
                               ),
                               padding: const EdgeInsets.all(3),
                               child: Row(
@@ -190,18 +211,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A),
+                            color: const Color(0xFF0A1120),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0x226366F1)),
+                            border: Border.all(color: const Color(0x221554A6)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              const Row(
                                 children: [
-                                  const Icon(Icons.flash_on, color: Color(0xFFF59E0B), size: 14),
-                                  const SizedBox(width: 6),
-                                  const Text(
+                                  Icon(Icons.health_and_safety, color: Color(0xFF78C02B), size: 14),
+                                  SizedBox(width: 6),
+                                  Text(
                                     '1-Click Demo Profiles',
                                     style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w600),
                                   ),
@@ -219,10 +240,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       },
                                       style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(vertical: 8),
-                                        side: const BorderSide(color: Color(0xFF6366F1)),
+                                        side: const BorderSide(color: Color(0xFF1554A6)),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
-                                      child: const Text('Dr. Belg (Doctor)', style: TextStyle(color: Color(0xFF818CF8), fontSize: 11, fontWeight: FontWeight.bold)),
+                                      child: const Text('Dr. Belg (Doctor)', style: TextStyle(color: Color(0xFF60A5FA), fontSize: 11, fontWeight: FontWeight.bold)),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -235,10 +256,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       },
                                       style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(vertical: 8),
-                                        side: const BorderSide(color: Color(0xFF06B6D4)),
+                                        side: const BorderSide(color: Color(0xFF78C02B)),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
-                                      child: const Text('James (Patient)', style: TextStyle(color: Color(0xFF22D3EE), fontSize: 11, fontWeight: FontWeight.bold)),
+                                      child: const Text('James (Patient)', style: TextStyle(color: Color(0xFF78C02B), fontSize: 11, fontWeight: FontWeight.bold)),
                                     ),
                                   ),
                                 ],
@@ -263,14 +284,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             hintText: 'Enter 10-digit phone number',
                             hintStyle: const TextStyle(color: Color(0xFF475569)),
                             filled: true,
-                            fillColor: const Color(0xFF0F172A),
+                            fillColor: const Color(0xFF0A1120),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0x3364748B)),
+                              borderSide: const BorderSide(color: Color(0x331554A6)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0x331554A6)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+                              borderSide: const BorderSide(color: Color(0xFF1554A6), width: 1.5),
                             ),
                           ),
                         ),
@@ -281,11 +306,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                              colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF6366F1).withOpacity(0.35),
+                                color: const Color(0xFF1554A6).withOpacity(0.35),
                                 blurRadius: 16,
                                 offset: const Offset(0, 4),
                               )

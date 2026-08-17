@@ -2737,14 +2737,14 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                     return Container(
                       constraints: const BoxConstraints(maxWidth: 460),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
+                        color: const Color(0xFF111C33),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withOpacity(0.08)),
-                        boxShadow: const [
+                        border: Border.all(color: const Color(0x331554A6)),
+                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black38,
+                            color: const Color(0xFF1554A6).withOpacity(0.12),
                             blurRadius: 20,
-                            offset: Offset(0, 8),
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
@@ -2754,7 +2754,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.share, color: Colors.indigoAccent, size: 20),
+                              Icon(Icons.share_rounded, color: Color(0xFF78C02B), size: 20),
                               SizedBox(width: 8),
                               Text(
                                 'Share Meeting Invitation',
@@ -2769,25 +2769,25 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           const SizedBox(height: 12),
                           const Text(
                             'Send this link to anyone you want to join. They will be able to join directly with their name.',
-                            style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
+                            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, height: 1.4),
                           ),
                           if (isLocalhost) ...[
                             const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.orangeAccent.withOpacity(0.1),
+                                color: const Color(0xFF1554A6).withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                                border: Border.all(color: const Color(0x331554A6)),
                               ),
                               child: const Row(
                                 children: [
-                                  Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 20),
+                                  Icon(Icons.info_outline_rounded, color: Color(0xFF60A5FA), size: 20),
                                   SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      'Warning: Meeting is running on localhost. Other devices on your Wi-Fi will need your computer\'s IP address to connect.',
-                                      style: TextStyle(color: Colors.orangeAccent, fontSize: 11, height: 1.3),
+                                      'Meeting is running on localhost. Other devices on your Wi-Fi will need your computer\'s IP address to connect.',
+                                      style: TextStyle(color: Color(0xFF93C5FD), fontSize: 11, height: 1.3),
                                     ),
                                   ),
                                 ],
@@ -2797,7 +2797,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                             const Text(
                               'HOST COMPUTER IP OVERRIDE',
                               style: TextStyle(
-                                color: Colors.white60,
+                                color: Color(0xFF94A3B8),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.5,
@@ -2812,17 +2812,25 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                               style: const TextStyle(color: Colors.white, fontSize: 13),
                               decoration: InputDecoration(
                                 hintText: 'Enter PC local IP (e.g., 192.168.1.50)',
-                                hintStyle: const TextStyle(color: Colors.white30),
+                                hintStyle: const TextStyle(color: Color(0xFF64748B)),
                                 filled: true,
-                                fillColor: const Color(0xFF0F172A),
+                                fillColor: const Color(0xFF0A1120),
                                 isDense: true,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
+                                  borderSide: const BorderSide(color: Color(0x331554A6)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Color(0x331554A6)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Color(0xFF1554A6), width: 1.5),
                                 ),
                                 suffixIcon: IconButton(
-                                  icon: const Icon(Icons.clear, color: Colors.white30, size: 16),
+                                  icon: const Icon(Icons.clear, color: Color(0xFF64748B), size: 16),
                                   onPressed: () {
                                     _ipOverrideController.clear();
                                     setState(() {});
@@ -2837,10 +2845,10 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
+                              color: const Color(0xFF0A1120),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: _consentAccepted ? Colors.greenAccent : Colors.orangeAccent.withOpacity(0.5),
+                                color: _consentAccepted ? const Color(0xFF78C02B) : const Color(0x331554A6),
                                 width: 1.5,
                               ),
                             ),
@@ -2848,8 +2856,8 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                               children: [
                                 Checkbox(
                                   value: _consentAccepted,
-                                  activeColor: Colors.greenAccent,
-                                  checkColor: Colors.black,
+                                  activeColor: const Color(0xFF78C02B),
+                                  checkColor: Colors.white,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                                   onChanged: (val) {
                                     setState(() {
@@ -2860,7 +2868,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                                 const Expanded(
                                   child: Text(
                                     'I confirm explicit patient consent for link sharing & guest participation.',
-                                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3, fontWeight: FontWeight.w600),
+                                    style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 11, height: 1.3, fontWeight: FontWeight.w600),
                                   ),
                                 ),
                               ],
@@ -2872,15 +2880,15 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
+                              color: const Color(0xFF0A1120),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: _consentAccepted ? Colors.greenAccent : Colors.orangeAccent,
+                                color: _consentAccepted ? const Color(0xFF78C02B) : const Color(0x331554A6),
                                 width: 1.5,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: (_consentAccepted ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.2),
+                                  color: (_consentAccepted ? const Color(0xFF78C02B) : const Color(0xFF1554A6)).withOpacity(0.15),
                                   blurRadius: 12,
                                 ),
                               ],
@@ -2890,7 +2898,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                                   ? "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"
                                   : '🔒 Link Locked: Tick "I confirm explicit patient consent" above to reveal invitation URL & Access Code.',
                               style: TextStyle(
-                                color: _consentAccepted ? Colors.white70 : Colors.orangeAccent,
+                                color: _consentAccepted ? const Color(0xFFE2E8F0) : const Color(0xFF94A3B8),
                                 fontSize: 12,
                                 fontFamily: _consentAccepted ? 'monospace' : 'sans-serif',
                                 fontWeight: _consentAccepted ? FontWeight.w600 : FontWeight.bold,
@@ -2905,11 +2913,11 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF6366F1), Color(0xFF3B82F6), Color(0xFF06B6D4)],
+                                colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF6366F1).withOpacity(0.4),
+                                  color: const Color(0xFF1554A6).withOpacity(0.35),
                                   blurRadius: 16,
                                   offset: const Offset(0, 6),
                                 ),
@@ -3319,10 +3327,16 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                   vertical: widget.isPip ? 8 : (isMobile ? 10 : 12),
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B).withOpacity(0.9), // Slate 800
+                  color: const Color(0xFF111C33).withOpacity(0.92),
                   borderRadius: BorderRadius.circular(widget.isPip ? 16 : (isMobile ? 20 : 30)),
-                  border: Border.all(color: Colors.white12),
-                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
+                  border: Border.all(color: const Color(0x331554A6)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1554A6).withOpacity(0.15),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
