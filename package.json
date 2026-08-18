@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "AuraCare CHAV Secure Backend - Auth, LiveKit Room Token Service, Biometric Storage & AI Scoring Microservice",
-  "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
+    "vercel-build": "bash vercel-build.sh",
     "start": "tsx server/src/server.ts",
     "dev": "tsx watch server/src/server.ts",
     "test": "node --test dist/test/*.js"
