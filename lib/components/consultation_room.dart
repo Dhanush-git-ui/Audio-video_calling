@@ -1884,50 +1884,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     }
   }
 
-  void _toggleBackgroundBlur() {
-    setState(() {
-      isBlurActive = !isBlurActive;
-    });
-    if (kIsWeb) {
-      try {
-        if (isBlurActive) {
-          js.context.callMethod('applyBackgroundBlur', [14]);
-        } else {
-          js.context.callMethod('clearBackgroundEffects', []);
-        }
-      } catch (e) {
-        debugPrint("Error toggling JS background blur: $e");
-      }
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isBlurActive ? '✨ Background Blur enabled' : 'Background Blur disabled'),
-        backgroundColor: const Color(0xFF1554A6),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _toggleNoiseCancellation() {
-    setState(() {
-      isNoiseCancellationActive = !isNoiseCancellationActive;
-    });
-    if (kIsWeb) {
-      try {
-        js.context.callMethod('toggleNoiseCancellation', [isNoiseCancellationActive]);
-      } catch (e) {
-        debugPrint("Error toggling JS noise cancellation: $e");
-      }
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isNoiseCancellationActive ? '🛡️ AI Noise Shield active' : 'AI Noise Shield disabled'),
-        backgroundColor: const Color(0xFF1554A6),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   // Connect to the self-hosted LiveKit server
   Future<void> _connectToLiveKit(String url, String token) async {
     try {
