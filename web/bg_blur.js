@@ -77,7 +77,8 @@
       _blurAmount = value || 15;
     } else if (type === 'image') {
       _bgImage = new Image();
-      _bgImage.crossOrigin = 'anonymous';
+      _bgImage.onload = () => console.log('BgBlur image loaded successfully:', value);
+      _bgImage.onerror = () => console.warn('BgBlur failed to load image:', value);
       _bgImage.src = value;
     }
   };
@@ -236,8 +237,12 @@
     _hiddenVideo.autoplay = true;
     _hiddenVideo.muted = true;
     _hiddenVideo.playsInline = true;
-    _hiddenVideo.style.display = 'none';
+    _hiddenVideo.style.position = 'absolute';
+    _hiddenVideo.style.left = '-9999px';
+    _hiddenVideo.style.width = '10px';
+    _hiddenVideo.style.height = '10px';
     document.body.appendChild(_hiddenVideo);
+    _hiddenVideo.play().catch(e => console.warn('BgBlur play error:', e));
 
     // Create the offscreen canvas to process the video
     _canvas = document.createElement('canvas');
@@ -274,9 +279,11 @@
         }
       }
 
-      // Check if Flutter overwrote the UI video element with a new raw camera stream (e.g. after camera toggle)
-      if (_uiVideoElement && _uiVideoElement.srcObject && _uiVideoElement.srcObject !== _processedStream) {
-        const newRawStream = _uiVideoElement.srcObject;
+      // Check if Flutter overwrote the UI video element with a new raw camera stream or rebuilt the DOM element entirely
+      const currentUiVideo = _findLocalVideoElement();
+      if (currentUiVideo && currentUiVideo.srcObject && currentUiVideo.srcObject !== _processedStream) {
+        _uiVideoElement = currentUiVideo;
+        const newRawStream = currentUiVideo.srcObject;
         if (newRawStream.getVideoTracks().length > 0) {
           _originalStream = newRawStream;
           if (_hiddenVideo) _hiddenVideo.srcObject = _originalStream;
