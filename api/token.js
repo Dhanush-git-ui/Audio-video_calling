@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Set CORS headers so the Flutter client can fetch the token from any origin if needed
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -52,4 +52,4 @@ module.exports = async (req, res) => {
     console.error('Error generating token:', error);
     return res.status(500).json({ error: 'Failed to generate token' });
   }
-};
+}
