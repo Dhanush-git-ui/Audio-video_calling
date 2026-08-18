@@ -2374,28 +2374,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                                   fontSize: 13,
                                 ),
                               ),
-                              if (_participantLocations
-                                  .containsKey(participant.identity))
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.location_on,
-                                        color: Colors.redAccent, size: 10),
-                                    const SizedBox(width: 2),
-                                    Flexible(
-                                      child: Text(
-                                        _participantLocations[
-                                            participant.identity]!['city'],
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 9,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
                             ],
                           ),
                         ),
@@ -3123,12 +3101,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: (isVideoOn && _localVideoTrack != null)
-                        ? ImageFiltered(
-                            imageFilter: isBlurActive
-                                ? ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14)
-                                : ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                            child: VideoTrackRenderer(_localVideoTrack!),
-                          )
+                        ? VideoTrackRenderer(_localVideoTrack!)
                         : Container(
                             color: const Color(0xFF1E293B),
                             child: Center(
@@ -3171,7 +3144,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           ),
                   ),
 
-                  // Blur active indicator badge (MediaPipe JS handles the actual bg blur)
+                  // Blur active indicator badge
                   if (isBlurActive)
                     Positioned(
                       top: 6,
@@ -3179,11 +3152,11 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4F46E5).withOpacity(0.9),
+                          color: const Color(0xFF1554A6).withOpacity(0.9),
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF4F46E5).withOpacity(0.4),
+                              color: const Color(0xFF1554A6).withOpacity(0.4),
                               blurRadius: 6,
                             ),
                           ],
@@ -3222,22 +3195,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                             shadows: const [Shadow(blurRadius: 2, color: Colors.black)],
                           ),
                         ),
-                        if (_participantLocations.containsKey(_room.localParticipant?.identity ?? 'Me'))
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.location_on, color: Colors.redAccent, size: widget.isPip ? 6 : (isMobile ? 8 : 10)),
-                              const SizedBox(width: 2),
-                              Text(
-                                _participantLocations[_room.localParticipant?.identity ?? 'Me']!['city'],
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: widget.isPip ? 6 : (isMobile ? 8 : 10),
-                                  shadows: const [Shadow(blurRadius: 2, color: Colors.black)],
-                                ),
-                              ),
-                            ],
-                          ),
                       ],
                     ),
                   ),

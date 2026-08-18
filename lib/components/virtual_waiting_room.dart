@@ -1073,12 +1073,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
           else if (_isCameraOn && _localVideoTrack != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: ImageFiltered(
-                imageFilter: _isBlurActive
-                    ? ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14)
-                    : ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                child: VideoTrackRenderer(_localVideoTrack!),
-              ),
+              child: VideoTrackRenderer(_localVideoTrack!),
             )
           else
             const Column(
