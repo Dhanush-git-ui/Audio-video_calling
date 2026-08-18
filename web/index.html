@@ -36,6 +36,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+  <script src="bg_blur.js"></script>
 </head>
 <body>
   <!--
@@ -102,175 +103,43 @@
     };
 
     // =========================================================================
-    // MEDIAPIPE SELFIE SEGMENTATION (PERSON-PRESERVING VIRTUAL BACKGROUND BLUR)
+    // VIRTUAL BACKGROUND & REAL-TIME BLUR INTEROP BRIDGE
     // =========================================================================
-    var selfieSegmentationEngine = null;
-    var isSegmentationRunning = false;
-    var segmentationAnimFrameId = null;
-    var blurCanvasElement = null;
-    var callHealthBgImage = new Image();
-    callHealthBgImage.src = 'callhealth_bg.png';
-
-    function initSelfieSegmentation() {
-      if (typeof window.SelfieSegmentation === 'undefined') {
-        console.warn("[MediaPipe] SelfieSegmentation library not yet loaded.");
-        return false;
-      }
-      if (!selfieSegmentationEngine) {
-        selfieSegmentationEngine = new window.SelfieSegmentation({
-          locateFile: function(file) {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-          }
-        });
-        selfieSegmentationEngine.setOptions({
-          modelSelection: 1, // 1: Landscape mode (fast & optimized for front camera)
-          selfieMode: false,
-        });
-        selfieSegmentationEngine.onResults(onSelfieSegmentationResults);
-        console.log("[MediaPipe] Person Segmentation Engine initialized.");
-      }
-      return true;
-    }
-
-    function onSelfieSegmentationResults(results) {
-      if (!blurCanvasElement || !isSegmentationRunning) return;
-      var canvas = blurCanvasElement;
-      var ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      var width = canvas.width;
-      var height = canvas.height;
-
-      ctx.save();
-      ctx.clearRect(0, 0, width, height);
-
-      // 1. Draw segmentation mask where person is 1.0 (opaque)
-      ctx.drawImage(results.segmentationMask, 0, 0, width, height);
-
-      // 2. Keep ONLY the person crisp and sharp
-      ctx.globalCompositeOperation = 'source-in';
-      ctx.drawImage(results.image, 0, 0, width, height);
-
-      // 3. Draw the CallHealth background image BEHIND the person
-      ctx.globalCompositeOperation = 'destination-over';
-      if (callHealthBgImage && callHealthBgImage.complete && callHealthBgImage.naturalWidth > 0) {
-        var imgW = callHealthBgImage.naturalWidth;
-        var imgH = callHealthBgImage.naturalHeight;
-        var scale = Math.max(width / imgW, height / imgH);
-        var drawW = imgW * scale;
-        var drawH = imgH * scale;
-        var drawX = (width - drawW) / 2;
-        var drawY = (height - drawH) / 2;
-        ctx.drawImage(callHealthBgImage, drawX, drawY, drawW, drawH);
-      } else {
-        ctx.filter = 'blur(16px)';
-        ctx.drawImage(results.image, 0, 0, width, height);
-      }
-
-      ctx.restore();
-    }
-
-    function getLocalVideoElement() {
-      var videos = document.querySelectorAll('video');
-      for (var i = 0; i < videos.length; i++) {
-        var v = videos[i];
-        if (v && v.readyState >= 2 && v.videoWidth > 0 && !v.paused) {
-          return v;
-        }
-      }
-      return null;
-    }
-
-    window.toggleBackgroundBlur = function(enabled) {
-      try {
-        if (enabled) {
-          isSegmentationRunning = true;
-          initSelfieSegmentation();
-
-          var video = getLocalVideoElement();
-          if (!video) {
-            setTimeout(function() {
-              if (isSegmentationRunning) window.toggleBackgroundBlur(true);
-            }, 300);
-            return true;
-          }
-
-          var parent = video.parentElement || video.parentNode;
-          if (!blurCanvasElement) {
-            blurCanvasElement = document.createElement('canvas');
-            blurCanvasElement.id = 'mediapipe-selfie-blur-canvas';
-            blurCanvasElement.style.position = 'absolute';
-            blurCanvasElement.style.top = '0';
-            blurCanvasElement.style.left = '0';
-            blurCanvasElement.style.width = '100%';
-            blurCanvasElement.style.height = '100%';
-            blurCanvasElement.style.objectFit = 'cover';
-            blurCanvasElement.style.pointerEvents = 'none';
-            blurCanvasElement.style.zIndex = '5';
-            blurCanvasElement.style.borderRadius = 'inherit';
-          }
-
-          blurCanvasElement.width = video.videoWidth || 640;
-          blurCanvasElement.height = video.videoHeight || 480;
-
-          if (parent && !parent.contains(blurCanvasElement)) {
-            if (getComputedStyle(parent).position === 'static') {
-              parent.style.position = 'relative';
-            }
-            parent.appendChild(blurCanvasElement);
-          }
-
-          blurCanvasElement.style.display = 'block';
-          video.style.opacity = '0'; // Keep raw video playing in DOM but visually present segmented canvas
-
-          function processFrame() {
-            if (!isSegmentationRunning) return;
-            var currentVideo = getLocalVideoElement();
-            if (currentVideo && currentVideo.readyState >= 2 && selfieSegmentationEngine) {
-              if (blurCanvasElement.width !== currentVideo.videoWidth && currentVideo.videoWidth > 0) {
-                blurCanvasElement.width = currentVideo.videoWidth;
-                blurCanvasElement.height = currentVideo.videoHeight;
-              }
-              selfieSegmentationEngine.send({ image: currentVideo }).catch(function(e) {});
-            }
-            segmentationAnimFrameId = requestAnimationFrame(processFrame);
-          }
-
-          if (segmentationAnimFrameId) cancelAnimationFrame(segmentationAnimFrameId);
-          segmentationAnimFrameId = requestAnimationFrame(processFrame);
-          console.log("[MediaPipe] Real-time Person-Preserving Background Blur Active.");
-          return true;
-        } else {
-          isSegmentationRunning = false;
-          if (segmentationAnimFrameId) {
-            cancelAnimationFrame(segmentationAnimFrameId);
-            segmentationAnimFrameId = null;
-          }
-          if (blurCanvasElement) {
-            blurCanvasElement.style.display = 'none';
-          }
-          var videos = document.querySelectorAll('video');
-          videos.forEach(function(v) {
-            v.style.opacity = '1';
-            v.style.filter = 'none';
-          });
-          console.log("[MediaPipe] Background Blur Cleared.");
-          return true;
-        }
-      } catch(e) {
-        console.error("[MediaPipe] Background blur toggle error:", e);
-        return false;
-      }
-    };
-
     window.applyBackgroundBlur = function(radius) {
-      return window.toggleBackgroundBlur(true);
+      try {
+        if (typeof window.setBgTheme === 'function') {
+          window.setBgTheme('image', 'callhealth_bg.png');
+        }
+        if (typeof window.startBgBlur === 'function') {
+          window.startBgBlur(radius || 15);
+        }
+        return true;
+      } catch(e) {
+        console.error("applyBackgroundBlur error:", e);
+        return false;
+      }
     };
 
     window.clearBackgroundEffects = function() {
-      return window.toggleBackgroundBlur(false);
+      try {
+        if (typeof window.stopBgBlur === 'function') {
+          window.stopBgBlur();
+        }
+        return true;
+      } catch(e) {
+        console.error("clearBackgroundEffects error:", e);
+        return false;
+      }
     };
     window.clearBackgroundEffect = window.clearBackgroundEffects;
+
+    window.toggleBackgroundBlur = function(enabled) {
+      if (enabled) {
+        return window.applyBackgroundBlur(15);
+      } else {
+        return window.clearBackgroundEffects();
+      }
+    };
 
     window.checkAndFlipCamera = function() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {

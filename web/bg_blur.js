@@ -103,13 +103,14 @@
 
   function _findLocalVideoElement() {
     const allVideos = _getAllVideoElements(document.body);
-    let validVideos = allVideos.filter(v => v.srcObject && v.srcObject.getVideoTracks().length > 0);
+    let validVideos = allVideos.filter(v => (v.srcObject && v.srcObject.getVideoTracks && v.srcObject.getVideoTracks().length > 0) || (v.readyState >= 2 && v.videoWidth > 0 && !v.paused));
     
-    if (validVideos.length === 0) return null;
+    if (validVideos.length === 0) {
+      if (allVideos.length > 0) return allVideos[allVideos.length - 1];
+      return null;
+    }
 
     // Sort by left coordinate descending (furthest right first)
-    // This correctly identifies the PiP UI video on the right, 
-    // instead of the hidden WebRTC dummy video that gets placed on the left (0,0).
     validVideos.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
     
     return validVideos[0];
@@ -118,8 +119,8 @@
   function _onResults(results) {
     if (!_running || !_canvas || !_ctx) return;
 
-    const w = results.image.width;
-    const h = results.image.height;
+    const w = results.image.width || 640;
+    const h = results.image.height || 480;
 
     if (_canvas.width !== w) _canvas.width = w;
     if (_canvas.height !== h) _canvas.height = h;
@@ -142,8 +143,8 @@
 
     _ctx.save();
     
-    if (_bgType === 'image' && _bgImage && _bgImage.complete) {
-      const imgRatio = _bgImage.width / _bgImage.height;
+    if (_bgType === 'image' && _bgImage && _bgImage.complete && _bgImage.naturalWidth > 0) {
+      const imgRatio = _bgImage.naturalWidth / _bgImage.naturalHeight;
       const canvasRatio = w / h;
       let drawW = w;
       let drawH = h;
