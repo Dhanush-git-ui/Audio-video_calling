@@ -103,17 +103,25 @@
 
   function _findLocalVideoElement() {
     const allVideos = _getAllVideoElements(document.body);
-    let validVideos = allVideos.filter(v => (v.srcObject && v.srcObject.getVideoTracks && v.srcObject.getVideoTracks().length > 0) || (v.readyState >= 2 && v.videoWidth > 0 && !v.paused));
+    let validVideos = allVideos.filter(v => 
+      (v.srcObject && v.srcObject.getVideoTracks && v.srcObject.getVideoTracks().length > 0) || 
+      (v.readyState >= 1)
+    );
     
-    if (validVideos.length === 0) {
-      if (allVideos.length > 0) return allVideos[allVideos.length - 1];
-      return null;
+    // In LiveKit, local video is muted to prevent feedback loop
+    if (validVideos.length > 0) {
+      let localVideos = validVideos.filter(v => v.muted || v.volume === 0 || v.hasAttribute('muted'));
+      if (localVideos.length > 0) return localVideos[0];
+      return validVideos[validVideos.length - 1];
     }
 
-    // Sort by left coordinate descending (furthest right first)
-    validVideos.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
+    if (allVideos.length > 0) {
+      let localVideos = allVideos.filter(v => v.muted || v.volume === 0 || v.hasAttribute('muted'));
+      if (localVideos.length > 0) return localVideos[0];
+      return allVideos[allVideos.length - 1];
+    }
     
-    return validVideos[0];
+    return null;
   }
 
   function _onResults(results) {
@@ -205,7 +213,7 @@
   window.startBgBlur = async function (blurAmount) {
     if (_running) return;
     _blurAmount = blurAmount || 15;
-    _bgType = 'blur';
+    if (!_bgType) _bgType = 'blur';
 
     if (typeof SelfieSegmentation === 'undefined') {
       console.warn('BgBlur: MediaPipe SelfieSegmentation not loaded.');
