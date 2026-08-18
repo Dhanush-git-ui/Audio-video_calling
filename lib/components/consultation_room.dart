@@ -1013,13 +1013,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
             ],
           ),
         );
-      },
-    ).then((_) {
-      // Safety net: ensure all state is cleared even if PopScope didn't fire
-      // (e.g. barrier tap, system back gesture).
-      setDocumentPreviewActive(false);
-      forceResetBlur();
-    });
+    );
   }
 
 
@@ -2978,8 +2972,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
 
   @override
   Widget build(BuildContext context) {
-    return buildWebProtector(
-      child: LayoutBuilder(
+    return LayoutBuilder(
         builder: (context, constraints) {
           final screenWidth = constraints.maxWidth;
           final screenHeight = constraints.maxHeight;
