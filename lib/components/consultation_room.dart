@@ -19,8 +19,6 @@ import 'dart:ui' as ui;
 import 'package:geolocator/geolocator.dart';
 import 'whiteboard_canvas.dart';
 import 'web_download_stub.dart' if (dart.library.html) 'web_download_web.dart';
-import 'web_screenshot_stub.dart'
-    if (dart.library.html) 'web_screenshot_web.dart';
 import '../services/supabase_storage_service.dart';
 import 'bg_images.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,7 +89,7 @@ class ConsultationRoom extends StatefulWidget {
 }
 
 class _ConsultationRoomState extends State<ConsultationRoom>
-    with TickerProviderStateMixin, ScreenshotProtectorStateMixin {
+    with TickerProviderStateMixin {
   late bool isVideoOn = widget.initialVideoOn;
   late bool isAudioOn = widget.initialAudioOn;
   bool isChatOpen = false;
@@ -212,9 +210,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     // Generate Room Access Code if not present
     final rand = Random();
     _roomAccessCode = (1000 + rand.nextInt(9000)).toString();
-
-    // Attach HIPAA screenshot warning keyboard listener
-    HardwareKeyboard.instance.addHandler(_keyboardKeyHandler);
 
     // Start Live Captions translation simulation
     _startCaptionSimulation();
@@ -412,45 +407,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
 
 
 
-  bool _keyboardKeyHandler(KeyEvent event) {
-    if (event is KeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.printScreen ||
-          (HardwareKeyboard.instance.isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyS) ||
-          (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyP)) {
-        _showScreenshotWarning();
-        return true;
-      }
-    }
-    return false;
-  }
 
-  void _showScreenshotWarning() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-            SizedBox(width: 10),
-            Text('HIPAA Privacy Warning', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: const Text(
-          'Taking screenshots or captures of this consultation session is strictly prohibited to comply with HIPAA privacy standards and patient confidentiality policies.',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('I Agree & Understand', style: TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
-          )
-        ],
-      ),
-    );
-  }
 
   void _startCaptionSimulation() {
     if (kIsWeb) {
@@ -736,7 +693,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
         debugPrint("Error stopping speech recognition: $e");
       }
     }
-    HardwareKeyboard.instance.removeHandler(_keyboardKeyHandler);
     _room.removeListener(_onRoomChanged);
     _room.disconnect();
     _listener?.dispose();
@@ -746,7 +702,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     _room.dispose();
     _chatController.dispose();
     _cleanupChatFiles();
-    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -898,25 +853,11 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       registerIframeView(iframeViewType, blobUrl, mimeType: mimeType);
     }
 
-    // Tell the screenshot protector mixin that an in-app preview is active
-    // so that iframe-caused focus shifts don't trigger false security warnings.
-    // Uses public mixin method to avoid accessing private mixin variables.
-    setDocumentPreviewActive(true);
-
     showDialog(
       context: context,
       barrierColor: Colors.black87,
       builder: (dialogContext) {
         return PopScope(
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) {
-              // Preview closed — clear the guard flag, force-reset any
-              // leftover blur overlay state, and restore protector focus.
-              setDocumentPreviewActive(false);
-              forceResetBlur();
-              restoreProtectorFocus();
-            }
-          },
           child: Stack(
             children: [
               // Preview content — fills the screen
@@ -4089,233 +4030,4 @@ class _ShapeClipper extends CustomClipper<Path> {
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => true;
 }
 
-// ---------------------------------------------------------------------------
-// Screenshot Protection Mixin
-// ---------------------------------------------------------------------------
 
-/// A Web-optimized mixin that automatically blurs out clinical data
-/// whenever the browser window loses focus or screenshot shortcuts are used.
-mixin ScreenshotProtectorStateMixin<T extends StatefulWidget> on State<T> {
-  bool _isWarningOpen = false;
-  bool _shouldBlurScreen = false;
-  bool _isDocumentPreviewOpen = false;
-  final FocusNode _keyboardFocusNode = FocusNode();
-
-  /// Public method: marks the document preview as open/closed.
-  /// When open, focus-based blur triggers (iframe focus, window blur) are
-  /// suppressed to prevent false positives. Keyboard shortcut-triggered
-  /// protection remains fully active.
-  void setDocumentPreviewActive(bool active) {
-    _isDocumentPreviewOpen = active;
-  }
-
-  /// Public method: restores keyboard focus to the protector's focus node
-  /// after a dialog or overlay is dismissed, ensuring shortcut detection
-  /// resumes cleanly without re-firing blur callbacks.
-  void restoreProtectorFocus() {
-    // Defer focus restoration to the next frame so the dialog's exit
-    // animation completes and focus listeners don't immediately re-fire.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _keyboardFocusNode.requestFocus();
-    });
-  }
-
-  /// Public method: unconditionally resets the blur overlay and warning
-  /// guard flags to their clean (non-blocking) state.
-  ///
-  /// Call this when closing the document preview or any overlay that
-  /// might leave residual state (e.g. if a screenshot warning was active
-  /// when the preview was dismissed).
-  void forceResetBlur() {
-    if (!mounted) return;
-    hideNativeWebOverlay();
-    setState(() {
-      _shouldBlurScreen = false;
-      _isWarningOpen = false;
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Prevent focus node from stealing focus or blocking text input fields in dialogs
-    _keyboardFocusNode.canRequestFocus = false;
-    _keyboardFocusNode.skipTraversal = true;
-
-    // Listen for browser window losing focus via Flutter lifecycle observer
-    WidgetsBinding.instance.addObserver(
-      _AppLifecycleObserver(
-        onWindowBlur: () => _toggleBlur(true),
-        onWindowFocus: () => _toggleBlur(false),
-      ),
-    );
-
-    // On Web (Google Chrome), register native HTML window blur, focus, and Page Visibility API listeners.
-    // When Snipping Tool, Win+Shift+S, Alt+Tab, OS screenshot tool, or browser tab switch occurs,
-    // Chrome's DOM window loses focus or document becomes hidden, triggering screen blur immediately.
-    // In-app Flutter dialogs (showDialog) DO NOT fire DOM window blur or visibilitychange, preventing false positives.
-    if (kIsWeb) {
-      try {
-        setupWebScreenshotProtection(
-          onBlur: () => _toggleBlur(true),
-          onFocus: () => _toggleBlur(false),
-          // Keyboard shortcut-triggered blurs use fromShortcut: true so they
-          // ALWAYS fire, even when a document preview dialog is open.
-          onScreenshotShortcut: () => _toggleBlur(true, fromShortcut: true),
-        );
-      } catch (e) {
-        debugPrint('Web Screenshot Protection setup error: $e');
-      }
-    }
-  }
-
-  void _toggleBlur(bool blur, {bool fromShortcut = false}) {
-    if (!mounted || _shouldBlurScreen == blur) return;
-    // When a document preview dialog is open, focus-based blurs (iframe
-    // stealing focus, window losing focus to OS UI) are suppressed to
-    // prevent false positives and infinite warning loops.
-    // Keyboard shortcut-triggered blurs (fromShortcut: true) ALWAYS fire
-    // so that screenshot protection remains active during document preview.
-    if (blur && _isDocumentPreviewOpen && !fromShortcut) return;
-    setState(() {
-      _shouldBlurScreen = blur;
-    });
-    if (blur) {
-      _showLocalWarningPopup();
-    }
-  }
-
-  void _showLocalWarningPopup() {
-    if (_isWarningOpen || !mounted) return;
-
-    _isWarningOpen = true;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.lock, color: Colors.red, size: 28),
-              SizedBox(width: 10),
-              Text('Data Protected'),
-            ],
-          ),
-          content: const Text(
-            'Screenshots are strictly prohibited. The viewport has been obscured to protect confidential medical files.',
-            style: TextStyle(fontSize: 16),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                // Explicitly reset BOTH flags and hide the native overlay.
-                hideNativeWebOverlay();
-                setState(() {
-                  _isWarningOpen = false;
-                  _shouldBlurScreen = false;
-                });
-                // Restore focus to the protector node in the next frame
-                // so it doesn't immediately re-trigger focus/blur listeners.
-                restoreProtectorFocus();
-              },
-              child: const Text(
-                'Return to Consultation',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Wraps your existing screen inside a keyboard listener and a native visual mask
-  Widget buildWebProtector({required Widget child}) {
-    return KeyboardListener(
-      focusNode: _keyboardFocusNode,
-      onKeyEvent: (KeyEvent event) {
-        if (event is KeyDownEvent) {
-          final isControlPressed = HardwareKeyboard.instance.isControlPressed;
-          final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
-          final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
-          final isCmdOrCtrl = isControlPressed || isMetaPressed;
-
-          // 1. Detect PrintScreen Key
-          if (event.logicalKey == LogicalKeyboardKey.printScreen) {
-            _toggleBlur(true, fromShortcut: true);
-          }
-          // 2. Windows Snipping Tool: Win + Shift + S or Ctrl + Shift + S
-          else if (isCmdOrCtrl &&
-              isShiftPressed &&
-              event.logicalKey == LogicalKeyboardKey.keyS) {
-            _toggleBlur(true, fromShortcut: true);
-          }
-          // 3. macOS Screenshot shortcuts: Cmd + Shift + 3, Cmd + Shift + 4, Cmd + Shift + 5
-          else if (isCmdOrCtrl &&
-              isShiftPressed &&
-              (event.logicalKey == LogicalKeyboardKey.digit3 ||
-                  event.logicalKey == LogicalKeyboardKey.digit4 ||
-                  event.logicalKey == LogicalKeyboardKey.digit5)) {
-            _toggleBlur(true, fromShortcut: true);
-          }
-          // 4. Detect Ctrl + P or Cmd + P (Browser Printing context)
-          else if (isCmdOrCtrl && event.logicalKey == LogicalKeyboardKey.keyP) {
-            _toggleBlur(true, fromShortcut: true);
-          }
-        }
-      },
-      child: Stack(
-        children: [
-          child, // Your untouched original screen layout
-          // Pre-rendered security block overlay layer (Always mounted for 0ms latency)
-          Positioned.fill(
-            child: IgnorePointer(
-              ignoring: !_shouldBlurScreen,
-              child: Opacity(
-                opacity: _shouldBlurScreen ? 1.0 : 0.0,
-                child: Container(
-                  color: Colors.black.withOpacity(0.98),
-                  child: const Center(
-                    child: Text(
-                      'SECURITY BLOCK ACTIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Helper class to detect when user leaves the Chrome browser view
-class _AppLifecycleObserver extends WidgetsBindingObserver {
-  final VoidCallback onWindowBlur;
-  final VoidCallback onWindowFocus;
-
-  _AppLifecycleObserver({
-    required this.onWindowBlur,
-    required this.onWindowFocus,
-  });
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Isolated: AppLifecycleState.inactive is intentionally excluded so in-app
-    // popups/dialogs/menus inside Chrome do not trigger false security blurs.
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      onWindowBlur();
-    } else if (state == AppLifecycleState.resumed) {
-      onWindowFocus();
-    }
-  }
-}
