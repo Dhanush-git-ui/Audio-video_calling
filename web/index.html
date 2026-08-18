@@ -108,6 +108,8 @@
     var isSegmentationRunning = false;
     var segmentationAnimFrameId = null;
     var blurCanvasElement = null;
+    var callHealthBgImage = new Image();
+    callHealthBgImage.src = 'callhealth_bg.png';
 
     function initSelfieSegmentation() {
       if (typeof window.SelfieSegmentation === 'undefined') {
@@ -149,10 +151,21 @@
       ctx.globalCompositeOperation = 'source-in';
       ctx.drawImage(results.image, 0, 0, width, height);
 
-      // 3. Draw blurred background BEHIND the person
+      // 3. Draw the CallHealth background image BEHIND the person
       ctx.globalCompositeOperation = 'destination-over';
-      ctx.filter = 'blur(16px)';
-      ctx.drawImage(results.image, 0, 0, width, height);
+      if (callHealthBgImage && callHealthBgImage.complete && callHealthBgImage.naturalWidth > 0) {
+        var imgW = callHealthBgImage.naturalWidth;
+        var imgH = callHealthBgImage.naturalHeight;
+        var scale = Math.max(width / imgW, height / imgH);
+        var drawW = imgW * scale;
+        var drawH = imgH * scale;
+        var drawX = (width - drawW) / 2;
+        var drawY = (height - drawH) / 2;
+        ctx.drawImage(callHealthBgImage, drawX, drawY, drawW, drawH);
+      } else {
+        ctx.filter = 'blur(16px)';
+        ctx.drawImage(results.image, 0, 0, width, height);
+      }
 
       ctx.restore();
     }
@@ -257,6 +270,7 @@
     window.clearBackgroundEffects = function() {
       return window.toggleBackgroundBlur(false);
     };
+    window.clearBackgroundEffect = window.clearBackgroundEffects;
 
     window.checkAndFlipCamera = function() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
