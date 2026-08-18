@@ -1013,6 +1013,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
             ],
           ),
         );
+      },
     );
   }
 
@@ -3429,9 +3430,8 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                   ),
         ],
       ),
-        );
+    );
       },
-    ),
     );
   }
 
