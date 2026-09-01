@@ -1,0 +1,76 @@
+# 🏛️ AuraCare CHAV — Telemedicine Monorepo (Node.js Backend + Flutter Frontend)
+
+This repository houses the complete **AuraCare CHAV** clinical telehealth platform structured as a clean monorepo:
+
+- **`backend/`**: Trusted Node.js / TypeScript microservice layer handling Auth, LiveKit Room Token minting, Supabase EMR Storage, and server-authoritative AI Biometric Scoring.
+- **`frontend/`**: Cross-platform Flutter application targeting Web, Android, iOS, Windows, and macOS from a unified Dart codebase.
+- **`migrations.sql`**: Postgres DDL script for Supabase database tables (`sessions`, `rooms`, `biometric_captures`, `biometric_audit_logs`, `doctor_availability`).
+
+---
+
+## 🏗️ Monorepo Directory Structure
+
+```
+.
+├── backend/
+│   ├── src/
+│   │   ├── server.ts                   # Entrypoint server wiring app routes
+│   │   ├── app.ts                      # Express setup, CORS, static web hosting
+│   │   ├── config/env.ts               # Validated env vars via Zod
+│   │   ├── db/client.ts                # Server-side Supabase admin client
+│   │   ├── middleware/                 # JWT auth, rate limiter & error handler
+│   │   └── modules/
+│   │       ├── auth/                   # Doctor/Patient login & Guest access code verification
+│   │       ├── rooms/                  # LiveKit room creation & token minting
+│   │       ├── biometric/              # Supabase storage upload & audit log viewer
+│   │       └── scoring/                # Raw signal processors & 90% threshold finalize
+│   ├── test/                           # Unit tests for scoring math & 3-attempt lockout
+│   ├── .env.example
+│   └── package.json
+├── frontend/
+│   ├── lib/
+│   │   ├── main.dart
+│   │   ├── config.dart                 # BASE_API_URL configuration (No client secrets)
+│   │   ├── api/                        # HTTP client wrappers (auth, rooms, biometric, scoring)
+│   │   ├── components/                 # UI layouts, waiting room, whiteboard, clinical panel
+│   │   ├── features/
+│   │   │   └── biometric_verification/ # Camera manager & local_signal_extractor (No local authority)
+│   │   └── providers/                  # User session presence state
+│   ├── web/                            # MediaPipe JS & canvas blur interop
+│   └── pubspec.yaml
+└── migrations.sql                      # Complete Postgres database schema
+```
+
+---
+
+## ⚡ Getting Started
+
+### 1. Database Setup (Supabase / Postgres)
+Execute `migrations.sql` in your Supabase SQL Editor to create the required tables and indexes:
+```bash
+psql -h <supabase-host> -U postgres -d postgres -f migrations.sql
+```
+
+### 2. Backend Installation & Server Execution
+```bash
+cd backend
+npm install
+npm run dev
+# Server will listen on http://localhost:5005
+```
+
+### 3. Frontend Execution & Web Build
+```bash
+cd frontend
+flutter pub get
+flutter run -d chrome
+# Or compile web release:
+flutter build web
+```
+
+---
+
+## 🔒 Security Guarantee
+- No client application holds Supabase Service Role keys or LiveKit Secrets.
+- LiveKit video/audio room tokens are minted server-side with strict role-based publish/subscribe grants.
+- The 90.0% AI Biometric Pass/Fail decision is calculated exclusively by the backend `/api/scoring/finalize` microservice.
