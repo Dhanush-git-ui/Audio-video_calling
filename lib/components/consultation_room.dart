@@ -3283,89 +3283,91 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                     ),
                   ],
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildControlButton(
-                      icon: isAudioOn ? Icons.mic_none : Icons.mic_off,
-                      isDanger: !isAudioOn,
-                      onTap: _toggleAudio,
-                      isMobile: isMobile,
-                    ),
-                    SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
-                    _buildControlButton(
-                      icon: isVideoOn ? Icons.videocam_outlined : Icons.videocam_off_outlined,
-                      isDanger: !isVideoOn,
-                      onTap: _toggleVideo,
-                      isMobile: isMobile,
-                    ),
-                    SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
-                    _buildControlButton(
-                      icon: Icons.chat_bubble_outline,
-                      isActive: isChatOpen,
-                      badgeCount: _unreadMessageCount,
-                      onTap: () {
-                        setState(() {
-                          isChatOpen = !isChatOpen;
-                          if (isChatOpen) {
-                            _unreadMessageCount = 0;
-                          }
-                        });
-                      },
-                      isMobile: isMobile,
-                    ),
-                    if (!isMobile) ...[
-                      const SizedBox(width: 10),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       _buildControlButton(
-                        icon: Icons.gesture,
-                        isActive: isWhiteboardOpen,
-                        label: widget.isPip ? null : 'Whiteboard',
-                        onTap: () => setState(() => isWhiteboardOpen = !isWhiteboardOpen),
-                      ),
-                      const SizedBox(width: 10),
-                      _buildControlButton(
-                        icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
-                        label: widget.isPip ? null : 'Blur',
-                        isActive: isBlurActive,
-                        onTap: _toggleBackgroundBlur,
-                      ),
-                      const SizedBox(width: 10),
-                      _buildControlButton(
-                        icon: isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
-                        label: widget.isPip ? null : 'Noise Shield',
-                        isActive: isNoiseCancellationActive,
-                        onTap: _toggleNoiseCancellation,
-                      ),
-                      const SizedBox(width: 10),
-                      _buildControlButton(
-                        icon: Icons.camera_alt,
-                        label: widget.isPip ? null : 'Live Photo',
-                        onTap: _showBiometricsModal,
-                      ),
-                      const SizedBox(width: 10),
-                      _buildControlButton(
-                        icon: Icons.flip_camera_ios,
-                        label: widget.isPip ? null : 'Flip',
-                        onTap: _flipCamera,
-                      ),
-                      if (!widget.isGuest) ...[
-                        const SizedBox(width: 10),
-                        _buildControlButton(
-                          icon: Icons.person_add_alt_1,
-                          label: widget.isPip ? null : 'Invite',
-                          onTap: _showInviteDialog,
-                        ),
-                      ],
-                    ] else ...[
-                      SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
-                      _buildControlButton(
-                        icon: Icons.more_horiz,
-                        onTap: _showMoreOptionsBottomSheet,
+                        icon: isAudioOn ? Icons.mic_none : Icons.mic_off,
+                        isDanger: !isAudioOn,
+                        onTap: _toggleAudio,
                         isMobile: isMobile,
                       ),
-                    ],
-                    SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
-                    GestureDetector(
+                      SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
+                      _buildControlButton(
+                        icon: isVideoOn ? Icons.videocam_outlined : Icons.videocam_off_outlined,
+                        isDanger: !isVideoOn,
+                        onTap: _toggleVideo,
+                        isMobile: isMobile,
+                      ),
+                      SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
+                      _buildControlButton(
+                        icon: Icons.chat_bubble_outline,
+                        isActive: isChatOpen,
+                        badgeCount: _unreadMessageCount,
+                        onTap: () {
+                          setState(() {
+                            isChatOpen = !isChatOpen;
+                            if (isChatOpen) {
+                              _unreadMessageCount = 0;
+                            }
+                          });
+                        },
+                        isMobile: isMobile,
+                      ),
+                      if (!isMobile) ...[
+                        const SizedBox(width: 10),
+                        _buildControlButton(
+                          icon: Icons.gesture,
+                          isActive: isWhiteboardOpen,
+                          label: widget.isPip ? null : 'Whiteboard',
+                          onTap: () => setState(() => isWhiteboardOpen = !isWhiteboardOpen),
+                        ),
+                        const SizedBox(width: 10),
+                        _buildControlButton(
+                          icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
+                          label: widget.isPip ? null : 'Blur',
+                          isActive: isBlurActive,
+                          onTap: _toggleBackgroundBlur,
+                        ),
+                        const SizedBox(width: 10),
+                        _buildControlButton(
+                          icon: isNoiseCancellationActive ? Icons.graphic_eq : Icons.noise_control_off,
+                          label: widget.isPip ? null : 'Noise Shield',
+                          isActive: isNoiseCancellationActive,
+                          onTap: _toggleNoiseCancellation,
+                        ),
+                        const SizedBox(width: 10),
+                        _buildControlButton(
+                          icon: Icons.camera_alt,
+                          label: widget.isPip ? null : 'Live Photo',
+                          onTap: _showBiometricsModal,
+                        ),
+                        const SizedBox(width: 10),
+                        _buildControlButton(
+                          icon: Icons.flip_camera_ios,
+                          label: widget.isPip ? null : 'Flip',
+                          onTap: _flipCamera,
+                        ),
+                        if (!widget.isGuest) ...[
+                          const SizedBox(width: 10),
+                          _buildControlButton(
+                            icon: Icons.person_add_alt_1,
+                            label: widget.isPip ? null : 'Invite',
+                            onTap: _showInviteDialog,
+                          ),
+                        ],
+                      ] else ...[
+                        SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
+                        _buildControlButton(
+                          icon: Icons.more_horiz,
+                          onTap: _showMoreOptionsBottomSheet,
+                          isMobile: isMobile,
+                        ),
+                      ],
+                      SizedBox(width: widget.isPip ? 8 : (isMobile ? 10 : 16)),
+                      GestureDetector(
                       onTap: () async {
                         if (widget.isDoctor && !widget.isGuest) {
                           try {
@@ -3402,7 +3404,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                       ),
                     ),
                   ],
-
+                ),
                 ),
               ),
             ),

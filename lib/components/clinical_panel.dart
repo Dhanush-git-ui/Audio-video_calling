@@ -224,26 +224,29 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.psychology, color: Color(0xFF78C02B), size: 20),
-                        SizedBox(width: 8),
-                        Text('Emotion Tracker', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF78C02B).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0x3378C02B)),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.psychology, color: Color(0xFF78C02B), size: 20),
+                          SizedBox(width: 8),
+                          Text('Emotion Tracker', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
                       ),
-                      child: const Text('CALM / STABLE', style: TextStyle(color: Color(0xFF78C02B), fontSize: 10, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF78C02B).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0x3378C02B)),
+                        ),
+                        child: const Text('CALM / STABLE', style: TextStyle(color: Color(0xFF78C02B), fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Text(
