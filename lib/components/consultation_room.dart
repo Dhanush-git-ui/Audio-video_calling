@@ -1116,20 +1116,73 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       return;
     }
 
+    final nonNullBytes = bytes;
     final fileName = pickedFile.name;
     final fileId = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
-    final base64Data = base64Encode(bytes);
+    final base64Data = base64Encode(nonNullBytes);
 
-    // Upload to Supabase Storage immediately (fire-and-forget).
+    // Upload to Supabase Storage immediately
     // Only the SENDER uploads — the receiver skips upload to avoid duplicates.
     final sentAt = DateTime.now();
-    debugPrint('Supabase: triggering upload for sent file "$fileName"');
-    unawaited(SupabaseStorageService.uploadFile(
-      fileName: fileName,
-      bytes: bytes,
-      receivedAt: sentAt,
-      callEndedAt: sentAt,
-    ));
+    print('🚀 [Supabase Storage] Initiating upload for sent file "$fileName" (${nonNullBytes.length} bytes)');
+    unawaited(() async {
+      final uploadResult = await SupabaseStorageService.uploadFile(
+        fileName: fileName,
+        bytes: nonNullBytes,
+        receivedAt: sentAt,
+        callEndedAt: sentAt,
+      );
+
+      if (uploadResult.hasError) {
+        print('❌ [Chat Upload Error] File "$fileName" failed: ${uploadResult.error?.message}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.cloud_off, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Supabase Upload Failed: ${uploadResult.error?.message ?? "Unknown error"}',
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      } else {
+        print('✅ [Chat Upload Success] File "$fileName" saved to ${uploadResult.storagePath} (duplicate: ${uploadResult.isDuplicate})');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      uploadResult.isDuplicate
+                          ? 'File "$fileName" already exists in chav_consultation_files.'
+                          : 'File "$fileName" uploaded to chav_consultation_files.',
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF059669),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }());
 
     // Data channel messages have a size limit, so we split the base64 string
     // into smaller chunks and send them one by one (same pattern already
@@ -1180,8 +1233,6 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     }
 
     // Cache the bytes so the sender can also preview what they just sent
-    // bytes is guaranteed non-null here (we returned early if null above)
-    final nonNullBytes = bytes!;
     _inMemoryChatFiles[fileId] = nonNullBytes;
 
     // Show the file we just sent in our own chat list

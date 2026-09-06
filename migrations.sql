@@ -63,3 +63,109 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON public.sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_doctor_id ON public.rooms(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_biometric_captures_room_id ON public.biometric_captures(room_id);
 CREATE INDEX IF NOT EXISTS idx_biometric_audit_logs_session_id ON public.biometric_audit_logs(session_id);
+
+-- ============================================================================
+-- 6. Supabase Storage Bucket Configuration: chav_consultation_files
+-- Organization: Shalini_Org (Free plan) | Project: CHAV (PRODUCTION)
+-- Target Bucket: chav_consultation_files (Public bucket)
+-- Folder: consultation-files/
+-- ============================================================================
+
+-- Create public bucket chav_consultation_files if not exists
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'chav_consultation_files',
+    'chav_consultation_files',
+    true,
+    52428800, -- 50MB file size limit
+    NULL      -- Allow all consultation file types
+)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Storage Security Policies for chav_consultation_files
+-- 1. Allow public and anonymous read access to consultation files
+DROP POLICY IF EXISTS "Allow Public Read Consultation Files" ON storage.objects;
+CREATE POLICY "Allow Public Read Consultation Files"
+ON storage.objects FOR SELECT
+TO anon, authenticated, service_role
+USING (bucket_id = 'chav_consultation_files');
+
+-- 2. Allow anonymous and authenticated users to upload to chav_consultation_files
+DROP POLICY IF EXISTS "Allow Upload Consultation Files" ON storage.objects;
+CREATE POLICY "Allow Upload Consultation Files"
+ON storage.objects FOR INSERT
+TO anon, authenticated, service_role
+WITH CHECK (
+    bucket_id = 'chav_consultation_files'
+);
+
+-- 3. Allow updates / upserts in chav_consultation_files
+DROP POLICY IF EXISTS "Allow Update Consultation Files" ON storage.objects;
+CREATE POLICY "Allow Update Consultation Files"
+ON storage.objects FOR UPDATE
+TO anon, authenticated, service_role
+USING (bucket_id = 'chav_consultation_files')
+WITH CHECK (bucket_id = 'chav_consultation_files');
+
+-- 4. Allow deletion for automated retention cleanup and authorized services
+DROP POLICY IF EXISTS "Allow Retention Delete Consultation Files" ON storage.objects;
+CREATE POLICY "Allow Retention Delete Consultation Files"
+ON storage.objects FOR DELETE
+TO anon, authenticated, service_role
+USING (bucket_id = 'chav_consultation_files');
+
+-- ============================================================================
+-- 7. 20-Day Automated Deletion / Retention Policy
+-- Ensures every file uploaded to chav_consultation_files under consultation-files/
+-- is automatically deleted exactly 20 days after its upload timestamp.
+-- ============================================================================
+
+-- Stored function to purge files older than 20 days
+CREATE OR REPLACE FUNCTION public.delete_expired_consultation_files()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    deleted_count INT;
+BEGIN
+    WITH deleted_rows AS (
+        DELETE FROM storage.objects
+        WHERE bucket_id = 'chav_consultation_files'
+          AND name LIKE 'consultation-files/%'
+          AND created_at < (NOW() - INTERVAL '20 days')
+        RETURNING id
+    )
+    SELECT count(*) INTO deleted_count FROM deleted_rows;
+
+    RETURN jsonb_build_object(
+        'status', 'success',
+        'deleted_files_count', deleted_count,
+        'executed_at', NOW()
+    );
+END;
+$$;
+
+-- Enable pg_cron extension if not already active
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Schedule automated daily retention cleanup at 00:00 UTC (every 24 hours)
+-- Any file uploaded >= 20 days ago will be automatically deleted permanently
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+        -- Unschedule existing job if already scheduled
+        PERFORM cron.unschedule('delete-expired-consultation-files-job')
+        WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'delete-expired-consultation-files-job');
+
+        -- Schedule job to execute daily at midnight
+        PERFORM cron.schedule(
+            'delete-expired-consultation-files-job',
+            '0 0 * * *',
+            'SELECT public.delete_expired_consultation_files();'
+        );
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'pg_cron scheduling notice: %', SQLERRM;
+END $$;

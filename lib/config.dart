@@ -12,8 +12,22 @@ class LiveKitConfig {
 }
 
 class SupabaseConfig {
-  static const String url = 'https://chav-telehealth.supabase.co';
-  static const String anonKey = 'sb_anon_key_chav_telehealth_storage_2026';
+  // Supabase Project: CHAV (Organization: Shalini_Org, Production)
+  static const String url = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://yfhnpautctntwdcisvmb.supabase.co',
+  );
+  static const String anonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmaG5wYXV0Y3RudHdkY2lzdm1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjU3MTEsImV4cCI6MjA5OTE0MTcxMX0.X1InbmI1bxqkdtndrSf6RYkKM9Nqu75Gt3tSvy3t_c0',
+  );
+
+  // Biometric bucket (preserved)
   static const String bucket = 'chav';
   static const String prefix = 'biometric_captures';
+
+  // Consultation Files Storage Configuration
+  static const String consultationBucket = 'chav_consultation_files';
+  static const String consultationFolder = 'consultation-files';
 }

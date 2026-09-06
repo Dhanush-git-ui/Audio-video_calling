@@ -1,0 +1,7 @@
+# Supabase Configuration for Project CHAV (Organization: Shalini_Org)
+project_id = "yfhnpautctntwdcisvmb"
+
+[functions.cleanup-consultation-files]
+verify_jwt = false
+# Schedule function execution daily at midnight UTC
+schedule = "0 0 * * *"

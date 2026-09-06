@@ -8,6 +8,7 @@ import 'dart:async'; // NEW
 
 import 'dart:typed_data';
 import 'services/speech_translation_service.dart'; // NEW
+import 'services/supabase_storage_service.dart';
 
 enum ChatFileType { text, image, pdf, textDoc, word, excel, powerpoint, audio, video, medical, zip, other }
 
@@ -704,6 +705,19 @@ class MeetingController extends ChangeNotifier {
       fileSize: bytes.length,
     ));
     notifyListeners();
+
+    // Upload to Supabase Storage with deduplication
+    unawaited(() async {
+      final res = await SupabaseStorageService.uploadFile(
+        fileName: fileName,
+        bytes: bytes,
+      );
+      if (res.hasError) {
+        print('❌ [SharedState File Upload Error] "$fileName": ${res.error?.message}');
+      } else {
+        print('✅ [SharedState File Upload Success] "$fileName": ${res.storagePath}');
+      }
+    }());
 
     if (room?.localParticipant == null) return;
 
