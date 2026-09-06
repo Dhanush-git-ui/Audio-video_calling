@@ -2,12 +2,12 @@
   "name": "auracare-chav-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "AuraCare CHAV Secure Backend - Auth, LiveKit Room Token Service, Biometric Storage & AI Scoring Microservice",
+  "description": "AuraCare CHAV Backend — Auth, LiveKit Token Minting, Biometric Storage, AI Scoring",
   "scripts": {
     "build": "tsc",
-    "vercel-build": "bash vercel-build.sh",
-    "start": "node server.js",
-    "dev": "node server.js",
+    "dev": "node --import tsx --env-file=.env server/src/server.ts",
+    "start": "node dist/server.js",
+    "vercel-build": "npm run build && bash vercel-build.sh",
     "test": "node --test dist/test/*.js"
   },
   "dependencies": {
@@ -27,7 +27,6 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.5.5",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "tsx": "^4.23.12",
     "typescript": "^5.6.2"
   }

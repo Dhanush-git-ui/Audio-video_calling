@@ -34,8 +34,8 @@ class _SetupLobbyState extends State<SetupLobby> {
   final _serverUrlController = TextEditingController(text: 'ws://127.0.0.1:7880');
   final _meetingDescriptionController = TextEditingController();
   
-  final _apiKeyController = TextEditingController(text: 'devkey');
-  final _apiSecretController = TextEditingController(text: 'secret');
+  final _apiKeyController = TextEditingController();
+  final _apiSecretController = TextEditingController();
   final _publicWebUrlController = TextEditingController();
 
   bool isDoctor = true;

@@ -27,7 +27,7 @@ class SupabaseFileRecord {
 /// Uploads captured biometrics via Backend Storage Service (/api/biometric/capture).
 class SupabaseStorageService {
   static final List<SupabaseFileRecord> storedFilesLog = [];
-  static const String _backendUrl = 'http://localhost:5005/api/biometric/capture';
+  static String get _backendUrl => '${AppConfig.baseApiUrl}/biometric/capture';
 
   /// Sends base64 PNG data to the backend Biometric Storage Service.
   static Future<SupabaseFileRecord> uploadBase64Image({
@@ -68,18 +68,7 @@ class SupabaseStorageService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         status = '✅ Uploaded via Secure Backend Storage (/api/biometric/capture)';
       } else {
-        // Direct REST fallback if server unavailable
-        final uploadUrl = Uri.parse('${SupabaseConfig.url}/storage/v1/object/${SupabaseConfig.bucket}/$filePath');
-        await http.post(
-          uploadUrl,
-          headers: {
-            'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
-            'apikey': SupabaseConfig.anonKey,
-            'Content-Type': 'image/png',
-            'x-upsert': 'true',
-          },
-          body: bytes,
-        );
+        status = '⚠️ Storage upload failed (${response.statusCode})';
       }
     } catch (e) {
       debugPrint("Storage service note: $e");

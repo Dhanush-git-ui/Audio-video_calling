@@ -1,19 +1,28 @@
 class AppConfig {
-  static const String baseApiUrl = 'http://localhost:5005/api';
+  // Backend base URL is injected at build time via:
+  //   flutter run --dart-define=API_BASE_URL=https://your-backend.example.com
+  // Defaults to localhost for `flutter run` on the same machine as the backend.
+  static const String baseApiUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:5005/api',
+  );
 }
 
 class LiveKitConfig {
-  // Your LiveKit Cloud URL
-  static const String serverUrl = 'wss://tele-qta84c5k.livekit.cloud';
-
-  // Credentials used to sign tokens locally for testing
-  static const String apiKey = 'APIjazQB9UmJJdg';
-  static const String apiSecret = 'Bp2ifhyMjeqNVZIoVkNRDMfan8X5pGSe7fmLgqtPR5TF';
+  // LiveKit server URL is injected at build time via:
+  //   flutter run --dart-define=LIVEKIT_URL=wss://your-app.livekit.cloud
+  // No API key/secret is ever shipped with the client — the backend mints tokens.
+  static const String serverUrl = String.fromEnvironment(
+    'LIVEKIT_URL',
+    defaultValue: 'wss://tele-qta84c5k.livekit.cloud',
+  );
 }
 
 class SupabaseConfig {
-  static const String url = 'https://chav-telehealth.supabase.co';
-  static const String anonKey = 'sb_anon_key_chav_telehealth_storage_2026';
+  // Supabase details are loaded from the backend at runtime; the client never
+  // talks to Supabase directly.
+  static const String url = '';
+  static const String anonKey = '';
   static const String bucket = 'chav';
   static const String prefix = 'biometric_captures';
 }

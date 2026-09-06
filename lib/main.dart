@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +10,6 @@ import 'components/ai_pre_consultation.dart';
 import 'components/token_generator.dart';
 import 'components/login_screen.dart';
 import 'components/guest_exit_screen.dart';
-import 'config.dart';
 
 void main() {
   runApp(const ChavApp());
@@ -19,7 +17,7 @@ void main() {
 
 Map<String, String> _parseQueryParams(GoRouterState state) {
   final params = <String, String>{};
-  
+
   String cleanValue(String val) {
     var cleaned = val.trim();
     if (cleaned.contains('\n')) {
@@ -34,13 +32,13 @@ Map<String, String> _parseQueryParams(GoRouterState state) {
   state.uri.queryParameters.forEach((key, value) {
     params[key] = cleanValue(value);
   });
-  
+
   if (params.isEmpty) {
     Uri.base.queryParameters.forEach((key, value) {
       params[key] = cleanValue(value);
     });
   }
-  
+
   if (params.isEmpty) {
     try {
       final fragment = Uri.base.fragment;
@@ -90,30 +88,34 @@ final GoRouter _router = GoRouter(
 
         final isDoctorRole = (role == 'doctor');
         final isGuestRole = (role == 'guest');
-        final token = generateLiveKitToken(
+
+        // Fetch token from server — client never holds apiSecret
+        fetchServerLiveKitToken(
           roomName: roomName,
           participantName: userName,
-          apiKey: LiveKitConfig.apiKey,
-          apiSecret: LiveKitConfig.apiSecret,
-        );
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go(
-            Uri(
-              path: '/consultation',
-              queryParameters: {
-                'room': roomName,
-                'url': LiveKitConfig.serverUrl,
+        ).then((token) {
+          if (context.mounted) {
+            context.go(
+              Uri(
+                path: '/consultation',
+                queryParameters: {
+                  'room': roomName,
+                  'url': qp['url'],
+                  'isDoctor': isDoctorRole.toString(),
+                  'isGuest': isGuestRole.toString(),
+                },
+              ).toString(),
+              extra: {
+                'token': token,
                 'isDoctor': isDoctorRole.toString(),
                 'isGuest': isGuestRole.toString(),
               },
-            ).toString(),
-            extra: {
-              'token': token,
-              'isDoctor': isDoctorRole.toString(),
-              'isGuest': isGuestRole.toString(),
-            },
-          );
+            );
+          }
+        }).catchError((err) {
+          debugPrint('Token fetch failed: $err');
         });
+
         return const Scaffold(
           backgroundColor: Color(0xFF0F172A),
           body: Center(
@@ -153,9 +155,9 @@ final GoRouter _router = GoRouter(
       builder: (context, state) {
         final qp = _parseQueryParams(state);
         final extra = state.extra as Map<String, dynamic>? ?? {};
-        
+
         final url = qp['url'] ?? extra['url'] ?? 'ws://localhost:7880';
-        var token = qp['token'] ?? extra['token'] ?? '';
+        final token = qp['token'] ?? extra['token'] ?? '';
         final room = qp['room'] ?? extra['room'] ?? '';
         final apiKey = qp['apiKey'] ?? extra['apiKey'] ?? '';
         final apiSecret = qp['apiSecret'] ?? extra['apiSecret'] ?? '';
@@ -164,17 +166,6 @@ final GoRouter _router = GoRouter(
         final publicUrl = qp['publicUrl'] ?? extra['publicUrl'] ?? '';
         final isDoctor = (qp['isDoctor'] ?? extra['isDoctor'] ?? 'false') == 'true';
         final isGuest = (qp['isGuest'] == 'true') || (qp['role'] == 'guest') || ((extra['isGuest'] ?? 'false') == 'true');
-        
-        // Auto-generate token if missing on page reload/refresh
-        if (token.isEmpty && room.isNotEmpty) {
-          final name = isDoctor ? 'Doctor' : 'Guest - ${(100 + Random().nextInt(900))}';
-          token = generateLiveKitToken(
-            roomName: room,
-            participantName: name,
-            apiKey: LiveKitConfig.apiKey,
-            apiSecret: LiveKitConfig.apiSecret,
-          );
-        }
 
         return DashboardLayout(
           child: ConsultationView(

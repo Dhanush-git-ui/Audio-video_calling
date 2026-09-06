@@ -1,16 +1,13 @@
 {
   "framework": null,
-  "buildCommand": "bash vercel-build.sh",
-  "outputDirectory": "build/web",
+  "buildCommand": "npm run build && bash vercel-build.sh",
+  "outputDirectory": ".",
   "cleanUrls": true,
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/dist/$1" }
   ]
 }
