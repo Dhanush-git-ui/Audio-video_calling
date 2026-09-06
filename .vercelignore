@@ -1,0 +1,42 @@
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.lock
+
+# Git
+.git
+.gitignore
+.github
+
+# Node
+node_modules/
+npm-debug.log
+.npm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts (keep only what Vercel needs)
+.env.local
+.env.*.local
+.next/
+dist/
+server/src/
+
+# Tests
+**/*.test.ts
+**/*.spec.ts
+
+# Documentation
+README.md
+CHANGELOG.md

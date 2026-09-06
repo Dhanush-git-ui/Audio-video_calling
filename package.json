@@ -6,8 +6,8 @@
   "scripts": {
     "build": "tsc",
     "vercel-build": "bash vercel-build.sh",
-    "start": "tsx server/src/server.ts",
-    "dev": "tsx watch server/src/server.ts",
+    "start": "node server.js",
+    "dev": "node server.js",
     "test": "node --test dist/test/*.js"
   },
   "dependencies": {
