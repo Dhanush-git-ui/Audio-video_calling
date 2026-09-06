@@ -31,7 +31,6 @@ Thumbs.db
 .env.*.local
 .next/
 dist/
-server/src/
 
 # Tests
 **/*.test.ts
