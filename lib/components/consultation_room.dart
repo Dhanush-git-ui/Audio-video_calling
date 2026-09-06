@@ -107,6 +107,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   String _liveTranscript = 'Consultation connected. Speech captions active...';
   String _selectedLanguage = 'English';
   Timer? _captionTimer;
+  bool _isCaptionsVisible = true;
   bool _isCameraFlipped = false;
   bool _activeSpeakerHighlight = false;
   String _activeSpeakerIdentity = '';
@@ -3197,64 +3198,148 @@ class _ConsultationRoomState extends State<ConsultationRoom>
               left: 24,
               right: 24,
               child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white10),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(sizeFactor: animation, alignment: Alignment.bottomCenter, child: child),
                   ),
-                  child: Row(
-                    children: [
-                      // Caption Speaker indicator
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _activeSpeakerHighlight ? Colors.pinkAccent : Colors.white30,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _liveTranscript,
-                          style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Multi-lingual Translation Dropdown
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedLanguage,
-                            dropdownColor: const Color(0xFF1E293B),
-                            style: const TextStyle(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.bold),
-                            items: const [
-                              DropdownMenuItem(value: 'English', child: Text('EN')),
-                              DropdownMenuItem(value: 'Spanish', child: Text('ES')),
+                  child: _isCaptionsVisible
+                      ? Container(
+                          key: const ValueKey('captions_expanded'),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.75),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
                             ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _selectedLanguage = val;
-                                  final index = (_captionIndex - 1).clamp(0, _captionDialogues.length - 1);
-                                  final data = _captionDialogues[index][_selectedLanguage] ?? _captionDialogues[index]['English']!;
-                                  _liveTranscript = "${data['speaker']}: ${data['text']}";
-                                });
-                              }
-                            },
+                          ),
+                          child: Row(
+                            children: [
+                              // Caption Speaker indicator
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: _activeSpeakerHighlight ? Colors.pinkAccent : Colors.white30,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _liveTranscript,
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Multi-lingual Translation Dropdown
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E293B),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _selectedLanguage,
+                                    dropdownColor: const Color(0xFF1E293B),
+                                    style: const TextStyle(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                    items: const [
+                                      DropdownMenuItem(value: 'English', child: Text('EN')),
+                                      DropdownMenuItem(value: 'Spanish', child: Text('ES')),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setState(() {
+                                          _selectedLanguage = val;
+                                          final index = (_captionIndex - 1).clamp(0, _captionDialogues.length - 1);
+                                          final data = _captionDialogues[index][_selectedLanguage] ?? _captionDialogues[index]['English']!;
+                                          _liveTranscript = "${data['speaker']}: ${data['text']}";
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Hide / Collapse Arrow Button (Down arrow)
+                              Tooltip(
+                                message: 'Hide captions',
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => setState(() => _isCaptionsVisible = false),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1E293B),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.white12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.keyboard_arrow_down,
+                                        color: Colors.white70,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Tooltip(
+                          key: const ValueKey('captions_collapsed'),
+                          message: 'Show captions',
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => setState(() => _isCaptionsVisible = true),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.75),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.subtitles_outlined, color: Colors.white70, size: 14),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Captions',
+                                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(
+                                      Icons.keyboard_arrow_up,
+                                      color: Colors.white70,
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),
