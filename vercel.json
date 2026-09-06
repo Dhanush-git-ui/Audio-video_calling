@@ -1,15 +1,8 @@
 {
+  "framework": null,
   "buildCommand": "bash vercel-build.sh",
-  "outputDirectory": ".",
-  "env": {
-    "NODE_OPTIONS": "--experimental-modules"
-  },
-  "functions": {
-    "server.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  },
+  "outputDirectory": "build/web",
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/(.*)",

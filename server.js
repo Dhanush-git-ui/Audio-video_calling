@@ -26,11 +26,15 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'web', 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n=============================================================`);
-  console.log(`🛡️ AuraCare CHAV Backend Service Running`);
-  console.log(`🌐 Server listening on: http://localhost:${PORT}`);
-  console.log(`🚀 API Base URL: http://localhost:${PORT}/api`);
-  console.log(`🌍 Flutter App: http://localhost:${PORT}`);
-  console.log(`=============================================================\n`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n=============================================================`);
+    console.log(`🛡️ AuraCare CHAV Backend Service Running`);
+    console.log(`🌐 Server listening on: http://localhost:${PORT}`);
+    console.log(`🚀 API Base URL: http://localhost:${PORT}/api`);
+    console.log(`🌍 Flutter App: http://localhost:${PORT}`);
+    console.log(`=============================================================\n`);
+  });
+}
+
+export default app;
