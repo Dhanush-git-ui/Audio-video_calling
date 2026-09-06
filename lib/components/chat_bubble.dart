@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:typed_data';
+<<<<<<< HEAD
 import 'dart:convert';
 import '../shared_state.dart';
+=======
+import 'dart:math';
+import '../shared_state.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+>>>>>>> origin/main
 
 /// Formats a file size in bytes to a human-readable string.
 String _formatFileSize(int bytes) {
@@ -17,8 +25,11 @@ String _formatFileSize(int bytes) {
   switch (type) {
     case ChatFileType.pdf:
       return (Icons.picture_as_pdf_rounded, const Color(0xFFEF4444));
+<<<<<<< HEAD
     case ChatFileType.textDoc:
       return (Icons.article_outlined, const Color(0xFF818CF8));
+=======
+>>>>>>> origin/main
     case ChatFileType.word:
       return (Icons.description_rounded, const Color(0xFF3B82F6));
     case ChatFileType.excel:
@@ -38,12 +49,31 @@ String _formatFileSize(int bytes) {
   }
 }
 
+<<<<<<< HEAD
 /// Opens a view-only full-screen image viewer dialog (NO download option).
+=======
+/// Downloads a file using the browser anchor trick (web only).
+void _downloadFile(String fileName, Uint8List bytes) {
+  if (!kIsWeb) return;
+  final blob = html.Blob([bytes]);
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.AnchorElement(href: url)
+    ..setAttribute('download', fileName)
+    ..click();
+  html.Url.revokeObjectUrl(url);
+}
+
+/// Opens a full-screen image viewer dialog.
+>>>>>>> origin/main
 void _showFullScreenImage(BuildContext context, Uint8List bytes, String? fileName) {
   showDialog(
     context: context,
     barrierColor: Colors.black87,
+<<<<<<< HEAD
     builder: (dialogContext) => Dialog(
+=======
+    builder: (_) => Dialog(
+>>>>>>> origin/main
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(16),
       child: Stack(
@@ -59,6 +89,7 @@ void _showFullScreenImage(BuildContext context, Uint8List bytes, String? fileNam
             ),
           ),
           Positioned(
+<<<<<<< HEAD
             top: 8,
             right: 8,
             child: IconButton(
@@ -121,10 +152,25 @@ void _showTextDocViewer(BuildContext context, String fileName, Uint8List bytes) 
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white70, size: 20),
                   onPressed: () => Navigator.of(dialogContext).pop(),
+=======
+            top: 8, right: 8,
+            child: Row(
+              children: [
+                if (fileName != null)
+                  IconButton(
+                    icon: const Icon(Icons.download_rounded, color: Colors.white),
+                    tooltip: 'Download',
+                    onPressed: () => _downloadFile(fileName, bytes),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+>>>>>>> origin/main
                 ),
               ],
             ),
           ),
+<<<<<<< HEAD
           Expanded(
             child: Container(
               width: double.infinity,
@@ -138,18 +184,27 @@ void _showTextDocViewer(BuildContext context, String fileName, Uint8List bytes) 
               ),
             ),
           ),
+=======
+>>>>>>> origin/main
         ],
       ),
     ),
   );
 }
 
+<<<<<<< HEAD
 /// A rich chat bubble that renders text, images, and file attachments appropriately (Strictly View-Only).
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final VoidCallback? onOpenFile;
 
   const ChatBubble({super.key, required this.message, this.onOpenFile});
+=======
+/// A rich chat bubble that renders text, images, and file attachments appropriately.
+class ChatBubble extends StatelessWidget {
+  final ChatMessage message;
+  const ChatBubble({super.key, required this.message});
+>>>>>>> origin/main
 
   @override
   Widget build(BuildContext context) {
@@ -161,22 +216,38 @@ class ChatBubble extends StatelessWidget {
       alignment: align,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
+<<<<<<< HEAD
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
+=======
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        child: Column(
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            // Sender name (only for received messages in a group)
+>>>>>>> origin/main
             if (!isMe && message.senderName.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 2),
                 child: Text(
                   message.senderName,
                   style: const TextStyle(
+<<<<<<< HEAD
                     color: Color(0xFF818CF8),
+=======
+                    color: Color(0xFF6366F1),
+>>>>>>> origin/main
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+<<<<<<< HEAD
+=======
+            // Bubble
+>>>>>>> origin/main
             Container(
               decoration: BoxDecoration(
                 color: bubbleColor,
@@ -188,7 +259,11 @@ class ChatBubble extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
+<<<<<<< HEAD
                     color: Colors.black.withOpacity(0.2),
+=======
+                    color: Colors.black.withValues(alpha: 0.2),
+>>>>>>> origin/main
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -206,8 +281,11 @@ class ChatBubble extends StatelessWidget {
     switch (message.fileType) {
       case ChatFileType.image:
         return _buildImageContent(context);
+<<<<<<< HEAD
       case ChatFileType.textDoc:
         return _buildTextDocContent(context);
+=======
+>>>>>>> origin/main
       case ChatFileType.text:
         return _buildTextContent();
       default:
@@ -229,14 +307,22 @@ class ChatBubble extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             message.time,
+<<<<<<< HEAD
             style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 9),
+=======
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9),
+>>>>>>> origin/main
           ),
         ],
       ),
     );
   }
 
+<<<<<<< HEAD
   /// Image bubble with in-app preview and tap-to-fullscreen zoom.
+=======
+  /// Image bubble with tap-to-fullscreen.
+>>>>>>> origin/main
   Widget _buildImageContent(BuildContext context) {
     final bytes = message.fileBytes;
     if (bytes == null) return _buildTextContent();
@@ -247,6 +333,7 @@ class ChatBubble extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: () => _showFullScreenImage(context, bytes, message.fileName),
+<<<<<<< HEAD
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Stack(
@@ -271,6 +358,34 @@ class ChatBubble extends StatelessWidget {
                     ),
                   ),
                 ],
+=======
+            child: Hero(
+              tag: message.id,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  children: [
+                    Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                      width: 240,
+                      height: 180,
+                      gaplessPlayback: true,
+                    ),
+                    Positioned(
+                      bottom: 6, right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 14),
+                      ),
+                    ),
+                  ],
+                ),
+>>>>>>> origin/main
               ),
             ),
           ),
@@ -291,12 +406,29 @@ class ChatBubble extends StatelessWidget {
                 if (message.fileSize != null)
                   Text(
                     _formatFileSize(message.fileSize!),
+<<<<<<< HEAD
                     style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 9),
                   ),
                 const Spacer(),
                 Text(
                   message.time,
                   style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 9),
+=======
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9),
+                  ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => _downloadFile(message.fileName ?? 'image.png', bytes),
+                  child: const Tooltip(
+                    message: 'Download',
+                    child: Icon(Icons.download_rounded, color: Colors.white54, size: 16),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  message.time,
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9),
+>>>>>>> origin/main
                 ),
               ],
             ),
@@ -306,6 +438,7 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
+<<<<<<< HEAD
   /// Text Document snippet inline preview with tap-to-expand full viewer.
   Widget _buildTextDocContent(BuildContext context) {
     final bytes = message.fileBytes;
@@ -453,8 +586,83 @@ class ChatBubble extends StatelessWidget {
             ),
           ],
         ),
+=======
+  /// Generic file attachment bubble (PDF, Word, Audio, etc.).
+  Widget _buildFileContent(BuildContext context) {
+    final (icon, color) = _fileIconAndColor(message.fileType);
+    final bytes = message.fileBytes;
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.fileName ?? message.text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (message.fileSize != null)
+                      Text(
+                        _formatFileSize(message.fileSize!),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10),
+                      ),
+                    const Spacer(),
+                    Text(
+                      message.time,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 9),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (bytes != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _downloadFile(message.fileName ?? 'file', bytes),
+              child: Tooltip(
+                message: 'Download',
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.download_rounded, color: Colors.white70, size: 16),
+                ),
+              ),
+            ),
+          ],
+        ],
+>>>>>>> origin/main
       ),
     );
   }
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main

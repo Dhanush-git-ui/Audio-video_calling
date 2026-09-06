@@ -8,15 +8,21 @@ import 'dart:async'; // NEW
 
 import 'dart:typed_data';
 import 'services/speech_translation_service.dart'; // NEW
+<<<<<<< HEAD
 import 'services/supabase_storage_service.dart';
 
 enum ChatFileType { text, image, pdf, textDoc, word, excel, powerpoint, audio, video, medical, zip, other }
+=======
+
+enum ChatFileType { text, image, pdf, word, excel, powerpoint, audio, video, medical, zip, other }
+>>>>>>> origin/main
 
 class ChatMessage {
   final String id;
   final String text;
   final bool isMe;
   final String time;
+<<<<<<< HEAD
   final bool isFile;
   final String? fileName;
   final String? filePath;
@@ -24,6 +30,12 @@ class ChatMessage {
   final String senderName;
   final ChatFileType fileType;
   final Uint8List? fileBytes;
+=======
+  final String senderName;
+  final ChatFileType fileType;
+  final Uint8List? fileBytes;
+  final String? fileName;
+>>>>>>> origin/main
   final int? fileSize;
 
   ChatMessage(
@@ -31,6 +43,7 @@ class ChatMessage {
     this.isMe,
     this.time, {
     String? id,
+<<<<<<< HEAD
     this.isFile = false,
     this.fileName,
     this.filePath,
@@ -43,12 +56,23 @@ class ChatMessage {
   })  : id = id ?? '${DateTime.now().microsecondsSinceEpoch}',
         fileBytes = fileBytes ?? imageBytes,
         fileType = fileType ?? (fileName != null ? detectType(fileName) : (isFile ? ChatFileType.other : ChatFileType.text));
+=======
+    this.senderName = '',
+    this.fileType = ChatFileType.text,
+    Uint8List? fileBytes,        // plain param so we can merge with imageBytes below
+    Uint8List? imageBytes,       // backward-compat alias
+    this.fileName,
+    this.fileSize,
+  })  : id = id ?? '${DateTime.now().microsecondsSinceEpoch}',
+        fileBytes = fileBytes ?? imageBytes;
+>>>>>>> origin/main
 
   // Backward-compat getter
   Uint8List? get imageBytes => fileType == ChatFileType.image ? fileBytes : null;
 
   /// Detect file type from extension
   static ChatFileType detectType(String name) {
+<<<<<<< HEAD
     final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].contains(ext)) return ChatFileType.image;
     if (ext == 'pdf') return ChatFileType.pdf;
@@ -60,6 +84,18 @@ class ChatMessage {
     if (['mp4', 'mov', 'webm', 'mkv', 'avi'].contains(ext)) return ChatFileType.video;
     if (['dcm', 'dicom'].contains(ext)) return ChatFileType.medical;
     if (['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) return ChatFileType.zip;
+=======
+    final ext = name.split('.').last.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(ext)) return ChatFileType.image;
+    if (ext == 'pdf') return ChatFileType.pdf;
+    if (['doc', 'docx'].contains(ext)) return ChatFileType.word;
+    if (['xls', 'xlsx', 'csv'].contains(ext)) return ChatFileType.excel;
+    if (['ppt', 'pptx'].contains(ext)) return ChatFileType.powerpoint;
+    if (['mp3', 'wav'].contains(ext)) return ChatFileType.audio;
+    if (ext == 'mp4') return ChatFileType.video;
+    if (['dcm', 'dicom'].contains(ext)) return ChatFileType.medical;
+    if (ext == 'zip') return ChatFileType.zip;
+>>>>>>> origin/main
     return ChatFileType.other;
   }
 }
@@ -706,6 +742,7 @@ class MeetingController extends ChangeNotifier {
     ));
     notifyListeners();
 
+<<<<<<< HEAD
     // Upload to Supabase Storage with deduplication
     unawaited(() async {
       final res = await SupabaseStorageService.uploadFile(
@@ -719,6 +756,8 @@ class MeetingController extends ChangeNotifier {
       }
     }());
 
+=======
+>>>>>>> origin/main
     if (room?.localParticipant == null) return;
 
     // Chunk and send

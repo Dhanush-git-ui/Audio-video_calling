@@ -63,6 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON public.sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_doctor_id ON public.rooms(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_biometric_captures_room_id ON public.biometric_captures(room_id);
 CREATE INDEX IF NOT EXISTS idx_biometric_audit_logs_session_id ON public.biometric_audit_logs(session_id);
+<<<<<<< HEAD
 
 -- ============================================================================
 -- 6. Supabase Storage Bucket Configuration: chav_consultation_files
@@ -169,3 +170,5 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE NOTICE 'pg_cron scheduling notice: %', SQLERRM;
 END $$;
+=======
+>>>>>>> origin/main

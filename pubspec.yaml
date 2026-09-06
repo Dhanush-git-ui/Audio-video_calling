@@ -22,7 +22,10 @@ dependencies:
   open_filex: ^4.7.0
   geolocator: ^14.0.2
   shared_preferences: ^2.5.5
+<<<<<<< HEAD
   crypto: ^3.0.3
+=======
+>>>>>>> origin/main
 
 dev_dependencies:
   flutter_test:

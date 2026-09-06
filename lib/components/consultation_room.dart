@@ -4,7 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+<<<<<<< HEAD
 import 'package:livekit_client/livekit_client.dart' hide ConnectionState, ChatMessage;
+=======
+import 'package:livekit_client/livekit_client.dart' hide ConnectionState;
+>>>>>>> origin/main
 import 'package:livekit_client/livekit_client.dart' as lk show ConnectionState;
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -29,7 +33,34 @@ import 'dart:js' show allowInterop;
 import 'package:provider/provider.dart';
 import '../providers/user_session_provider.dart';
 import '../shared_state.dart';
+<<<<<<< HEAD
 import 'chat_bubble.dart';
+=======
+
+
+
+class ChatMessage {
+  final String text;
+  final bool isMe;
+  final String time;
+  final bool isFile;
+  final String? fileName;
+  final String? filePath;
+  final String? memoryKey;
+  final String? senderName;
+
+  ChatMessage(
+    this.text,
+    this.isMe,
+    this.time, {
+    this.isFile = false,
+    this.fileName,
+    this.filePath,
+    this.memoryKey,
+    this.senderName,
+  });
+}
+>>>>>>> origin/main
 
 class ConsultationRoom extends StatefulWidget {
   final String url;
@@ -107,18 +138,25 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   final Map<String, String> _customParticipantNames = {};
   bool _isSharingLocation = false;
 
+<<<<<<< HEAD
   // For reassembling incoming whiteboard file chunks
+=======
+  // For reassembling incoming file chunks
+>>>>>>> origin/main
   final Map<String, List<String?>> _incomingFileChunks = {};
   Directory? _chatFilesDir;
   final List<String> _webBlobUrls = [];
   final Map<String, Uint8List> _inMemoryChatFiles = {};
 
+<<<<<<< HEAD
   // Buffers for reassembling incoming CHAT file chunks
   final Map<String, List<String?>> _incomingChatFileChunks = {};
   final Map<String, String> _incomingChatFileNames = {};
   final Map<String, int> _incomingChatFileSizes = {};
   final Map<String, String> _incomingChatSenderNames = {};
 
+=======
+>>>>>>> origin/main
   // Patient Waiting Queue & Timer state
   bool _doctorJoinedTriggered = false;
   Timer? _waitingTimer;
@@ -357,6 +395,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
           return;
         }
 
+<<<<<<< HEAD
         // 4. Reassemble chunked CHAT file sharing
         if (event.topic == 'chat_file') {
           final type = decodedMap['type'] as String?;
@@ -442,6 +481,30 @@ class _ConsultationRoomState extends State<ConsultationRoom>
               }
             });
           }
+=======
+        // 4. Standard chat message processing
+        final text = decodedMap['text'] as String;
+        final sender = decodedMap['sender'] as String;
+        final isMe = sender == _room.localParticipant?.identity;
+        
+        if (mounted) {
+          setState(() {
+            _messages.add(
+              ChatMessage(
+                text,
+                isMe,
+                DateFormat('hh:mm a').format(DateTime.now()),
+              ),
+            );
+            if (!isMe) {
+              if (!isChatOpen) {
+                _unreadMessageCount++;
+              } else {
+                isChatOpen = true;
+              }
+            }
+          });
+>>>>>>> origin/main
         }
       } catch (e) {
         debugPrint("Error parsing data packet: $e");
@@ -1116,6 +1179,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       return;
     }
 
+<<<<<<< HEAD
     final nonNullBytes = bytes;
     final fileName = pickedFile.name;
     final fileId = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
@@ -1183,6 +1247,22 @@ class _ConsultationRoomState extends State<ConsultationRoom>
         }
       }
     }());
+=======
+    final fileName = pickedFile.name;
+    final fileId = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    final base64Data = base64Encode(bytes);
+
+    // Upload to Supabase Storage immediately (fire-and-forget).
+    // Only the SENDER uploads — the receiver skips upload to avoid duplicates.
+    final sentAt = DateTime.now();
+    debugPrint('Supabase: triggering upload for sent file "$fileName"');
+    unawaited(SupabaseStorageService.uploadFile(
+      fileName: fileName,
+      bytes: bytes,
+      receivedAt: sentAt,
+      callEndedAt: sentAt,
+    ));
+>>>>>>> origin/main
 
     // Data channel messages have a size limit, so we split the base64 string
     // into smaller chunks and send them one by one (same pattern already
@@ -1206,7 +1286,10 @@ class _ConsultationRoomState extends State<ConsultationRoom>
         'index': i,
         'total': totalChunks,
         'data': chunk,
+<<<<<<< HEAD
         'senderName': _room.localParticipant?.name ?? _room.localParticipant?.identity ?? '',
+=======
+>>>>>>> origin/main
       });
 
       // _room.localParticipant?.publishData(
@@ -1232,9 +1315,12 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       }
     }
 
+<<<<<<< HEAD
     // Cache the bytes so the sender can also preview what they just sent
     _inMemoryChatFiles[fileId] = nonNullBytes;
 
+=======
+>>>>>>> origin/main
     // Show the file we just sent in our own chat list
     if (mounted) {
       setState(() {
@@ -1245,10 +1331,13 @@ class _ConsultationRoomState extends State<ConsultationRoom>
             DateFormat('hh:mm a').format(DateTime.now()),
             isFile: true,
             fileName: fileName,
+<<<<<<< HEAD
             memoryKey: fileId,
             fileBytes: nonNullBytes,
             fileSize: nonNullBytes.lengthInBytes,
             fileType: ChatMessage.detectType(fileName),
+=======
+>>>>>>> origin/main
           ),
         );
       });
@@ -1870,17 +1959,25 @@ class _ConsultationRoomState extends State<ConsultationRoom>
 
     // Publish data channel message to all remote participants
     final payload = jsonEncode({
+<<<<<<< HEAD
       'type': 'chat',
       'text': text,
       'sender': _room.localParticipant?.identity ?? 'User',
       'senderName': _room.localParticipant?.name ?? _room.localParticipant?.identity ?? 'User',
       'time': DateFormat('hh:mm a').format(DateTime.now()),
+=======
+      'text': text,
+      'sender': _room.localParticipant?.identity ?? 'User',
+>>>>>>> origin/main
     });
     
     _room.localParticipant?.publishData(
       utf8.encode(payload),
       reliable: true,
+<<<<<<< HEAD
       topic: 'chat',
+=======
+>>>>>>> origin/main
     );
 
     setState(() {
@@ -3870,12 +3967,37 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                               );
                             }
                             final msg = _messages[index - 1];
+<<<<<<< HEAD
                             return Padding(
                               key: ValueKey('msg_$index'),
                               padding: const EdgeInsets.only(bottom: 8),
                               child: ChatBubble(
                                 message: msg,
                                 onOpenFile: () => _openReceivedFile(msg),
+=======
+                            return Align(
+                              alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: msg.isMe ? const Color(0xFF4F46E5) : const Color(0xFF334155),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(16),
+                                    topRight: const Radius.circular(16),
+                                    bottomLeft: Radius.circular(msg.isMe ? 16 : 4),
+                                    bottomRight: Radius.circular(msg.isMe ? 4 : 16),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: msg.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                  children: [
+                                    Text(msg.text, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                    const SizedBox(height: 4),
+                                    Text(msg.time, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 9)),
+                                  ],
+                                ),
+>>>>>>> origin/main
                               ).animate().fadeIn().slideY(begin: 0.2),
                             );
                           },

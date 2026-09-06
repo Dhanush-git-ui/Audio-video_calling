@@ -1,5 +1,9 @@
 import 'dart:convert';
+<<<<<<< HEAD
 import 'package:crypto/crypto.dart';
+=======
+import 'dart:typed_data';
+>>>>>>> origin/main
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
@@ -24,6 +28,7 @@ class SupabaseFileRecord {
   });
 }
 
+<<<<<<< HEAD
 /// Representation of an error returned by Supabase Storage operations.
 class StorageError {
   final String message;
@@ -209,10 +214,14 @@ class Supabase {
 }
 
 /// Service handling Supabase Storage for Biometrics and Chatbox Consultation Files.
+=======
+/// Uploads captured biometrics via Backend Storage Service (/api/biometric/capture).
+>>>>>>> origin/main
 class SupabaseStorageService {
   static final List<SupabaseFileRecord> storedFilesLog = [];
   static const String _backendUrl = 'http://localhost:5005/api/biometric/capture';
 
+<<<<<<< HEAD
   /// In-memory cache of SHA-256 hashes of uploaded files in the current session
   /// to ensure strict idempotency and avoid duplicate uploads.
   static final Set<String> _uploadedHashes = <String>{};
@@ -262,6 +271,9 @@ class SupabaseStorageService {
   }
 
   /// Uploads captured biometrics via Backend Storage Service (/api/biometric/capture).
+=======
+  /// Sends base64 PNG data to the backend Biometric Storage Service.
+>>>>>>> origin/main
   static Future<SupabaseFileRecord> uploadBase64Image({
     required String dataUrl,
     required String captureType,
@@ -331,6 +343,7 @@ class SupabaseStorageService {
     return record;
   }
 
+<<<<<<< HEAD
   /// Uploads a chatbox consultation file into the `chav_consultation_files` bucket
   /// under the `consultation-files/` folder path.
   ///
@@ -420,5 +433,33 @@ class SupabaseStorageService {
       publicUrl: publicUrl,
       isDuplicate: false,
     );
+=======
+  static Future<bool> uploadFile({
+    required String fileName,
+    required Uint8List bytes,
+    required DateTime receivedAt,
+    required DateTime callEndedAt,
+  }) async {
+    try {
+      final epoch = callEndedAt.millisecondsSinceEpoch;
+      final filePath = '${SupabaseConfig.prefix}/${epoch}_$fileName';
+
+      final uploadUrl = Uri.parse('${SupabaseConfig.url}/storage/v1/object/${SupabaseConfig.bucket}/$filePath');
+      await http.post(
+        uploadUrl,
+        headers: {
+          'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+          'apikey': SupabaseConfig.anonKey,
+          'Content-Type': 'application/octet-stream',
+          'x-upsert': 'true',
+        },
+        body: bytes,
+      );
+      return true;
+    } catch (e, st) {
+      debugPrint('Supabase upload note for $fileName: $e\n$st');
+      return false;
+    }
+>>>>>>> origin/main
   }
 }

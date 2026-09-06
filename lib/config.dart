@@ -12,6 +12,7 @@ class LiveKitConfig {
 }
 
 class SupabaseConfig {
+<<<<<<< HEAD
   // Supabase Project: CHAV (Organization: Shalini_Org, Production)
   static const String url = String.fromEnvironment(
     'SUPABASE_URL',
@@ -30,4 +31,10 @@ class SupabaseConfig {
   // Consultation Files Storage Configuration
   static const String consultationBucket = 'chav_consultation_files';
   static const String consultationFolder = 'consultation-files';
+=======
+  static const String url = 'https://chav-telehealth.supabase.co';
+  static const String anonKey = 'sb_anon_key_chav_telehealth_storage_2026';
+  static const String bucket = 'chav';
+  static const String prefix = 'biometric_captures';
+>>>>>>> origin/main
 }
