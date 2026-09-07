@@ -2,7 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 class ClinicalPanel extends StatefulWidget {
-  const ClinicalPanel({super.key});
+  final String? appointmentId;
+  final String? patientName;
+  final String? patientId;
+  final String? doctorName;
+  final String? specialty;
+  final String? symptoms;
+  final String? appointmentDate;
+  final String? appointmentTime;
+
+  const ClinicalPanel({
+    super.key,
+    this.appointmentId,
+    this.patientName,
+    this.patientId,
+    this.doctorName,
+    this.specialty,
+    this.symptoms,
+    this.appointmentDate,
+    this.appointmentTime,
+  });
 
   @override
   State<ClinicalPanel> createState() => _ClinicalPanelState();
@@ -11,8 +30,37 @@ class ClinicalPanel extends StatefulWidget {
 class _ClinicalPanelState extends State<ClinicalPanel> {
   int activeTabIndex = 0;
 
+  String get _patientInitials {
+    final name = (widget.patientName != null && widget.patientName!.isNotEmpty)
+        ? widget.patientName!
+        : 'Priya Sharma';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0].substring(0, parts[0].length.clamp(1, 2)).toUpperCase();
+    }
+    return 'PS';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final displayName = (widget.patientName != null && widget.patientName!.isNotEmpty)
+        ? widget.patientName!
+        : 'Priya Sharma';
+    final displaySymptoms = (widget.symptoms != null && widget.symptoms!.isNotEmpty)
+        ? widget.symptoms!
+        : 'Headache and Dizziness';
+    final displayId = (widget.patientId != null && widget.patientId!.isNotEmpty)
+        ? widget.patientId!
+        : (widget.appointmentId != null && widget.appointmentId!.isNotEmpty
+            ? widget.appointmentId!
+            : '8eb84baf-7a92-474b-911b');
+    final displaySpecialty = (widget.specialty != null && widget.specialty!.isNotEmpty)
+        ? widget.specialty!
+        : 'General Physician';
+    final displayDateTime = "${widget.appointmentDate ?? '2026-09-07'}, ${widget.appointmentTime ?? '10:30'}";
+
     return Container(
       color: const Color(0xFF0A1120), // CallHealth Deep Navy
       child: Column(
@@ -54,7 +102,7 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: const Text('JC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                    child: Text(_patientInitials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -66,7 +114,7 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                           spacing: 12,
                           runSpacing: 4,
                           children: [
-                            const Text('James Carter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFFF8FAFC), letterSpacing: -0.2)),
+                            Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFFF8FAFC), letterSpacing: -0.2)),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
@@ -74,22 +122,25 @@ class _ClinicalPanelState extends State<ClinicalPanel> {
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(color: const Color(0x331554A6)),
                               ),
-                              child: const Text('P-20240125-001', style: TextStyle(color: Color(0xFF93C5FD), fontSize: 10, fontWeight: FontWeight.w600)),
+                              child: Text(
+                                displayId.length > 18 ? '${displayId.substring(0, 16)}...' : displayId,
+                                style: const TextStyle(color: Color(0xFF93C5FD), fontSize: 10, fontWeight: FontWeight.w600),
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
-                        const Text('Pain near left chest, Pelvic salinity', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                        Text(displaySymptoms, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _buildTag('28 Yrs - Male'),
-                            _buildTag('O+ve', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
-                            _buildTag('Cardiology', color: const Color(0xFF1554A6).withOpacity(0.18), textColor: const Color(0xFF93C5FD)),
-                            _buildTag('25 Jan 2025, 07:00 AM'),
-                            _buildTag('Online Consultation', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
+                            _buildTag('Female • B+'),
+                            _buildTag('Type 2 Diabetes', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
+                            _buildTag(displaySpecialty, color: const Color(0xFF1554A6).withOpacity(0.18), textColor: const Color(0xFF93C5FD)),
+                            _buildTag(displayDateTime),
+                            _buildTag('Prachtiz Consultation', color: const Color(0xFF78C02B).withOpacity(0.15), textColor: const Color(0xFF78C02B)),
                           ],
                         ),
                       ],

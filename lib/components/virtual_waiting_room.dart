@@ -14,6 +14,7 @@ import '../config.dart'; // Import LiveKitConfig
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:js' as js;
 import 'dart:ui' as ui;
+import 'web_download_stub.dart' if (dart.library.html) 'web_download_web.dart';
 
 class VirtualWaitingRoom extends StatefulWidget {
   final String? initialRoom;
@@ -24,6 +25,15 @@ class VirtualWaitingRoom extends StatefulWidget {
   final String? initialPublicUrl;
   final String? initialRole;
   final String? initialAccessCode;
+  final String? appointmentId;
+  final String? patientName;
+  final String? patientId;
+  final String? doctorName;
+  final String? doctorId;
+  final String? specialty;
+  final String? symptoms;
+  final String? appointmentDate;
+  final String? appointmentTime;
 
   const VirtualWaitingRoom({
     super.key,
@@ -35,6 +45,15 @@ class VirtualWaitingRoom extends StatefulWidget {
     this.initialPublicUrl,
     this.initialRole,
     this.initialAccessCode,
+    this.appointmentId,
+    this.patientName,
+    this.patientId,
+    this.doctorName,
+    this.doctorId,
+    this.specialty,
+    this.symptoms,
+    this.appointmentDate,
+    this.appointmentTime,
   });
 
   @override
@@ -84,6 +103,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
   String? _micError;
   bool _isInitializingMedia = true;
   bool _isBlurActive = false;
+  bool _isVideoMirrored = true; // Mirror video preview horizontally (selfie view)
   bool _isNoiseCancellationActive = true;
 
   // Device lists and selection states
@@ -120,7 +140,16 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
       _isAccessCodeVerified = true;
     }
 
-    if (widget.initialRoom != null) {
+    if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
+      _roomController.text = widget.appointmentId!;
+      if (initRoleLower == 'doctor' && widget.doctorName != null && widget.doctorName!.isNotEmpty) {
+        _nameController.text = widget.doctorName!;
+      } else if (initRoleLower == 'patient' && widget.patientName != null && widget.patientName!.isNotEmpty) {
+        _nameController.text = widget.patientName!;
+      } else if (widget.initialName != null && widget.initialName!.isNotEmpty) {
+        _nameController.text = widget.initialName!;
+      }
+    } else if (widget.initialRoom != null) {
       _roomController.text = widget.initialRoom!;
       if (widget.initialName != null && widget.initialName!.isNotEmpty) {
         _nameController.text = widget.initialName!;
@@ -146,6 +175,10 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     }
     if (widget.initialPublicUrl != null) {
       _publicWebUrlController.text = widget.initialPublicUrl!;
+    }
+
+    if (kIsWeb) {
+      registerVirtualBgView('virtual-bg-live-canvas');
     }
 
     _loadDevices().then((_) {
@@ -336,8 +369,45 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
     }
   }
 
+  void _toggleMirrorVideo({bool? explicitVal}) {
+    setState(() {
+      _isVideoMirrored = explicitVal ?? !_isVideoMirrored;
+    });
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('setBgMirror', [_isVideoMirrored]);
+      } catch (e) {
+        debugPrint("Error updating BG mirror: $e");
+      }
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.flip, color: _isVideoMirrored ? const Color(0xFF78C02B) : Colors.cyanAccent),
+            const SizedBox(width: 12),
+            Text(
+              _isVideoMirrored
+                  ? '🪞 Mirror Mode: ON (Selfie View)'
+                  : '📷 Mirror Mode: OFF (Normal Camera View)',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1554A6),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   Future<void> _flipCamera() async {
-    if (_cameras.isEmpty) return;
+    if (_cameras.isEmpty || _cameras.length <= 1) {
+      _toggleMirrorVideo();
+      return;
+    }
     int currentIndex = _cameras.indexWhere((c) => c.deviceId == _selectedCameraId);
     int nextIndex = (currentIndex + 1) % _cameras.length;
     final nextCamera = _cameras[nextIndex];
@@ -514,7 +584,21 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
                   if (_localVideoTrack != null)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: VideoTrackRenderer(_localVideoTrack!),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Offstage(
+                            offstage: _isBlurActive && kIsWeb,
+                            child: Transform(
+                              alignment: Alignment.center,
+                              transform: _isVideoMirrored ? Matrix4.identity() : Matrix4.rotationY(pi),
+                              child: VideoTrackRenderer(_localVideoTrack!),
+                            ),
+                          ),
+                          if (_isBlurActive && kIsWeb)
+                            const HtmlElementView(viewType: 'virtual-bg-live-canvas'),
+                        ],
+                      ),
                     )
                   else
                     const Icon(Icons.face, color: Colors.white54, size: 64),
@@ -676,12 +760,30 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
             'url': LiveKitConfig.serverUrl,
             'isDoctor': 'true',
             'isGuest': 'false',
+            if (widget.appointmentId != null) 'appointmentId': widget.appointmentId!,
+            if (widget.patientName != null) 'patientName': widget.patientName!,
+            if (widget.patientId != null) 'patientId': widget.patientId!,
+            if (widget.doctorName != null) 'doctorName': widget.doctorName!,
+            if (widget.doctorId != null) 'doctorId': widget.doctorId!,
+            if (widget.specialty != null) 'specialty': widget.specialty!,
+            if (widget.symptoms != null) 'symptoms': widget.symptoms!,
+            if (widget.appointmentDate != null) 'date': widget.appointmentDate!,
+            if (widget.appointmentTime != null) 'time': widget.appointmentTime!,
           },
         ).toString(),
         extra: {
           'token': token,
           'isDoctor': 'true',
           'isGuest': 'false',
+          'appointmentId': widget.appointmentId,
+          'patientName': widget.patientName,
+          'patientId': widget.patientId,
+          'doctorName': widget.doctorName,
+          'doctorId': widget.doctorId,
+          'specialty': widget.specialty,
+          'symptoms': widget.symptoms,
+          'date': widget.appointmentDate,
+          'time': widget.appointmentTime,
         },
       );
     } else if (isGuestRole) {
@@ -700,7 +802,7 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
         ? widget.initialName!
         : (_nameController.text.trim().isNotEmpty && _nameController.text.trim() != 'Dr. Amanulla Belg'
             ? _nameController.text.trim()
-            : 'Patient User');
+            : (widget.patientName ?? 'Priya Sharma'));
 
     _localVideoTrack?.dispose();
     _localVideoTrack = null;
@@ -721,12 +823,30 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
           'url': LiveKitConfig.serverUrl,
           'isDoctor': 'false',
           'isGuest': 'false',
+          if (widget.appointmentId != null) 'appointmentId': widget.appointmentId!,
+          if (widget.patientName != null) 'patientName': widget.patientName!,
+          if (widget.patientId != null) 'patientId': widget.patientId!,
+          if (widget.doctorName != null) 'doctorName': widget.doctorName!,
+          if (widget.doctorId != null) 'doctorId': widget.doctorId!,
+          if (widget.specialty != null) 'specialty': widget.specialty!,
+          if (widget.symptoms != null) 'symptoms': widget.symptoms!,
+          if (widget.appointmentDate != null) 'date': widget.appointmentDate!,
+          if (widget.appointmentTime != null) 'time': widget.appointmentTime!,
         },
       ).toString(),
       extra: {
         'token': token,
         'isDoctor': 'false',
         'isGuest': 'false',
+        'appointmentId': widget.appointmentId,
+        'patientName': widget.patientName,
+        'patientId': widget.patientId,
+        'doctorName': widget.doctorName,
+        'doctorId': widget.doctorId,
+        'specialty': widget.specialty,
+        'symptoms': widget.symptoms,
+        'date': widget.appointmentDate,
+        'time': widget.appointmentTime,
       },
     );
   }
@@ -1073,7 +1193,21 @@ class _VirtualWaitingRoomState extends State<VirtualWaitingRoom> {
           else if (_isCameraOn && _localVideoTrack != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: VideoTrackRenderer(_localVideoTrack!),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Offstage(
+                    offstage: _isBlurActive && kIsWeb,
+                    child: Transform(
+                      alignment: Alignment.center,
+                      transform: _isVideoMirrored ? Matrix4.identity() : Matrix4.rotationY(pi),
+                      child: VideoTrackRenderer(_localVideoTrack!),
+                    ),
+                  ),
+                  if (_isBlurActive && kIsWeb)
+                    const HtmlElementView(viewType: 'virtual-bg-live-canvas'),
+                ],
+              ),
             )
           else
             const Column(

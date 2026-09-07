@@ -3,4 +3,5 @@ String openFileInBrowser(String fileName, List<int> bytes) => '';
 String createBlobUrl(String fileName, List<int> bytes) => '';
 String getMimeType(String fileName) => 'application/octet-stream';
 void registerIframeView(String viewType, String blobUrl, {String mimeType = ''}) {}
+void registerVirtualBgView(String viewType) {}
 void revokeBlobUrl(String url) {}

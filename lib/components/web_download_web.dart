@@ -3,6 +3,8 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:ui_web' as ui_web;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js' as js;
 
 /// MIME types that all major browsers can render natively in a tab.
 /// Any type NOT in this set would trigger a download dialog — which we
@@ -140,6 +142,27 @@ void registerIframeView(String viewType, String blobUrl, {String mimeType = ''})
     // Block right-click context menu on the iframe element itself
     iframe.onContextMenu.listen((e) => e.preventDefault());
     return iframe;
+  });
+}
+
+/// Registers a platform view factory for the virtual background live canvas.
+bool _virtualBgViewRegistered = false;
+void registerVirtualBgView(String viewType) {
+  if (_virtualBgViewRegistered) return;
+  _virtualBgViewRegistered = true;
+
+  // ignore: undefined_prefixed_name
+  ui_web.platformViewRegistry.registerViewFactory(viewType, (int viewId) {
+    try {
+      final dynamic jsEl = js.context.callMethod('getVirtualBgCanvasElement', []);
+      if (jsEl != null) {
+        return jsEl as html.Element;
+      }
+    } catch (_) {}
+    return html.DivElement()
+      ..style.width = '100%'
+      ..style.height = '100%'
+      ..style.backgroundColor = '#0F172A';
   });
 }
 

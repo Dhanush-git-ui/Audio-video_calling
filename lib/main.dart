@@ -23,9 +23,6 @@ Map<String, String> _parseQueryParams(GoRouterState state) {
     if (cleaned.contains('\n')) {
       cleaned = cleaned.split('\n').first.trim();
     }
-    if (cleaned.contains(' ')) {
-      cleaned = cleaned.split(' ').first.trim();
-    }
     return cleaned;
   }
 
@@ -103,12 +100,30 @@ final GoRouter _router = GoRouter(
                   'url': qp['url'],
                   'isDoctor': isDoctorRole.toString(),
                   'isGuest': isGuestRole.toString(),
+                  if (qp['appointmentId'] != null) 'appointmentId': qp['appointmentId']!,
+                  if (qp['patientName'] != null) 'patientName': qp['patientName']!,
+                  if (qp['patientId'] != null) 'patientId': qp['patientId']!,
+                  if (qp['doctorName'] != null) 'doctorName': qp['doctorName']!,
+                  if (qp['doctorId'] != null) 'doctorId': qp['doctorId']!,
+                  if (qp['specialty'] != null) 'specialty': qp['specialty']!,
+                  if (qp['symptoms'] != null) 'symptoms': qp['symptoms']!,
+                  if (qp['date'] != null) 'date': qp['date']!,
+                  if (qp['time'] != null) 'time': qp['time']!,
                 },
               ).toString(),
               extra: {
                 'token': token,
                 'isDoctor': isDoctorRole.toString(),
                 'isGuest': isGuestRole.toString(),
+                'appointmentId': qp['appointmentId'],
+                'patientName': qp['patientName'],
+                'patientId': qp['patientId'],
+                'doctorName': qp['doctorName'],
+                'doctorId': qp['doctorId'],
+                'specialty': qp['specialty'],
+                'symptoms': qp['symptoms'],
+                'date': qp['date'],
+                'time': qp['time'],
               },
             );
           }
@@ -137,15 +152,26 @@ final GoRouter _router = GoRouter(
             ? session.userName
             : (qp['name']);
 
+        final initialName = name ?? (role == 'doctor' ? qp['doctorName'] : qp['patientName']);
+
         return DashboardLayout(
           child: VirtualWaitingRoom(
-            initialRoom: qp['room'],
-            initialName: name,
+            initialRoom: qp['room'] ?? qp['appointmentId'],
+            initialName: initialName,
             initialUrl: qp['url'],
             initialKey: qp['key'],
             initialSecret: qp['secret'],
             initialRole: role,
             initialAccessCode: qp['ac'],
+            appointmentId: qp['appointmentId'],
+            patientName: qp['patientName'],
+            patientId: qp['patientId'],
+            doctorName: qp['doctorName'],
+            doctorId: qp['doctorId'],
+            specialty: qp['specialty'],
+            symptoms: qp['symptoms'],
+            appointmentDate: qp['date'],
+            appointmentTime: qp['time'],
           ),
         );
       },
@@ -167,6 +193,16 @@ final GoRouter _router = GoRouter(
         final isDoctor = (qp['isDoctor'] ?? extra['isDoctor'] ?? 'false') == 'true';
         final isGuest = (qp['isGuest'] == 'true') || (qp['role'] == 'guest') || ((extra['isGuest'] ?? 'false') == 'true');
 
+        final appointmentId = qp['appointmentId'] ?? (extra['appointmentId'] as String?) ?? '';
+        final patientName = qp['patientName'] ?? (extra['patientName'] as String?) ?? '';
+        final patientId = qp['patientId'] ?? (extra['patientId'] as String?) ?? '';
+        final doctorName = qp['doctorName'] ?? (extra['doctorName'] as String?) ?? '';
+        final doctorId = qp['doctorId'] ?? (extra['doctorId'] as String?) ?? '';
+        final specialty = qp['specialty'] ?? (extra['specialty'] as String?) ?? '';
+        final symptoms = qp['symptoms'] ?? (extra['symptoms'] as String?) ?? '';
+        final appointmentDate = qp['date'] ?? (extra['date'] as String?) ?? '';
+        final appointmentTime = qp['time'] ?? (extra['time'] as String?) ?? '';
+
         return DashboardLayout(
           child: ConsultationView(
             url: url,
@@ -179,6 +215,15 @@ final GoRouter _router = GoRouter(
             publicUrl: publicUrl,
             isDoctor: isDoctor,
             isGuest: isGuest,
+            appointmentId: appointmentId,
+            patientName: patientName,
+            patientId: patientId,
+            doctorName: doctorName,
+            doctorId: doctorId,
+            specialty: specialty,
+            symptoms: symptoms,
+            appointmentDate: appointmentDate,
+            appointmentTime: appointmentTime,
           ),
         );
       },

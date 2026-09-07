@@ -30,7 +30,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_session_provider.dart';
 import '../shared_state.dart';
 
-
+import '../api/prachtiz_api.dart';
 
 class ChatMessage {
   final String text;
@@ -67,6 +67,15 @@ class ConsultationRoom extends StatefulWidget {
   final VoidCallback? onExpand;
   final bool isDoctor;
   final bool isGuest;
+  final String appointmentId;
+  final String patientName;
+  final String patientId;
+  final String doctorName;
+  final String doctorId;
+  final String specialty;
+  final String symptoms;
+  final String appointmentDate;
+  final String appointmentTime;
 
   const ConsultationRoom({
     super.key,
@@ -82,6 +91,15 @@ class ConsultationRoom extends StatefulWidget {
     this.onExpand,
     this.isDoctor = false,
     this.isGuest = false,
+    this.appointmentId = '',
+    this.patientName = '',
+    this.patientId = '',
+    this.doctorName = '',
+    this.doctorId = '',
+    this.specialty = '',
+    this.symptoms = '',
+    this.appointmentDate = '',
+    this.appointmentTime = '',
   });
 
   @override
@@ -94,6 +112,8 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   late bool isAudioOn = widget.initialAudioOn;
   bool isChatOpen = false;
   bool isBlurActive = false;
+  String _currentBgTheme = 'image';
+  String _selectedBgImageUrl = 'backgrounds/clinic_office.jpg';
   bool isNoiseCancellationActive = true;
   String? _mediaErrorMessage;
   bool isWhiteboardOpen = false;
@@ -109,6 +129,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   Timer? _captionTimer;
   bool _isCaptionsVisible = true;
   bool _isCameraFlipped = false;
+  bool _isVideoMirrored = true; // Mirror video preview horizontally (selfie view)
   bool _activeSpeakerHighlight = false;
   String _activeSpeakerIdentity = '';
   final List<String> _simulatedLogs = [];
@@ -204,6 +225,9 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      registerVirtualBgView('virtual-bg-live-canvas');
+    }
     _loadDevices();
     // Rebuild UI when connection state or participants change
     _room.addListener(_onRoomChanged);
@@ -224,6 +248,40 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       }
     } catch (e) {
       debugPrint("Error parsing web host: $e");
+    }
+
+    // Auto-notify Patient Portal if entering as Doctor with an active appointment ID
+    if (widget.isDoctor && widget.appointmentId.isNotEmpty) {
+      PrachtizApi.notifyPatientInPrachtiz(
+        appointmentId: widget.appointmentId,
+        roomId: widget.roomName,
+        patientName: widget.patientName.isNotEmpty ? widget.patientName : null,
+        symptoms: widget.symptoms.isNotEmpty ? widget.symptoms : null,
+        doctorName: widget.doctorName.isNotEmpty ? widget.doctorName : null,
+      ).then((res) {
+        if (res != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: const [
+                  Icon(Icons.check_circle, color: Color(0xFF10B981)),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Live consultation invitation automatically sent to Patient Portal!',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF0F172A),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      });
     }
     
     // 2. Listen to data channel messages (real-time chat)
@@ -522,6 +580,11 @@ class _ConsultationRoomState extends State<ConsultationRoom>
       debugPrint("[MeetingLifecycle] Cleanup error: $e");
     }
 
+    // End call session in Prachtiz Clinic Platform
+    if (widget.appointmentId.isNotEmpty) {
+      PrachtizApi.endPrachtizCallSession(widget.roomName, widget.appointmentId);
+    }
+
     if (!mounted) return;
 
     if (message != null) {
@@ -720,38 +783,68 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     }
   }
 
-  Future<void> _flipCamera() async {
+  void _toggleMirrorVideo({bool? explicitVal}) {
+    setState(() {
+      _isVideoMirrored = explicitVal ?? !_isVideoMirrored;
+    });
     if (kIsWeb) {
       try {
-        final res = await js.context.callMethod('checkAndFlipCamera', []);
-        final success = res['success'] == true;
-        final message = res['message']?.toString() ?? 'Camera state updated';
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: success ? Colors.green.shade800 : Colors.redAccent,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        js.context.callMethod('setBgMirror', [_isVideoMirrored]);
       } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ No Back Camera Detected! Device has 1 camera (Front Camera).'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        debugPrint("Error updating BG mirror: $e");
+      }
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.flip, color: _isVideoMirrored ? const Color(0xFF78C02B) : Colors.cyanAccent),
+            const SizedBox(width: 12),
+            Text(
+              _isVideoMirrored
+                  ? '🪞 Mirror Mode: ON (Selfie View)'
+                  : '📷 Mirror Mode: OFF (Normal Camera View)',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1554A6),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Future<void> _flipCamera() async {
+    if (kIsWeb) {
+      bool didSwitch = false;
+      try {
+        final res = await js.context.callMethod('checkAndFlipCamera', []);
+        if (res != null && res['success'] == true) {
+          didSwitch = true;
+          final message = res['message']?.toString() ?? 'Camera state updated';
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.green.shade800,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (_) {}
+
+      if (!didSwitch) {
+        // Toggle horizontal mirror for PC / single camera
+        _toggleMirrorVideo();
       }
       return;
     }
 
-    if (_cameras.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ No Back Camera Detected! Device has 1 camera.')),
-      );
+    if (_cameras.isEmpty || _cameras.length <= 1) {
+      _toggleMirrorVideo();
       return;
     }
 
@@ -1196,44 +1289,285 @@ class _ConsultationRoomState extends State<ConsultationRoom>
   bool _isTogglingVideo = false;
   bool _isTogglingAudio = false;
 
-  void _toggleBackgroundBlur() {
+  void _toggleBackgroundBlur({String? mode, String? imageUrl}) {
+    if (mode != null) {
+      _currentBgTheme = mode;
+    }
+    if (imageUrl != null) {
+      _selectedBgImageUrl = imageUrl;
+    }
+
     setState(() {
-      isBlurActive = !isBlurActive;
+      if (mode != null) {
+        isBlurActive = true;
+      } else {
+        isBlurActive = !isBlurActive;
+      }
     });
 
     if (kIsWeb) {
       try {
         if (isBlurActive) {
-          js.context.callMethod('applyBackgroundBlur', [14]);
+          if (_currentBgTheme == 'image') {
+            final fullImg = _selectedBgImageUrl.startsWith('http')
+                ? _selectedBgImageUrl
+                : '${Uri.base.origin}/${_selectedBgImageUrl.replaceAll(RegExp(r"^/+"), "")}';
+            js.context.callMethod('applyBackgroundImage', [fullImg]);
+          } else {
+            js.context.callMethod('applyBackgroundBlur', [14]);
+          }
         } else {
           js.context.callMethod('clearBackgroundEffect', []);
         }
       } catch (e) {
-        debugPrint("Error toggling background blur: $e");
+        debugPrint("Error toggling background: $e");
       }
     }
 
+    final isImage = _currentBgTheme == 'image';
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isBlurActive ? Icons.blur_on : Icons.blur_off,
-              color: isBlurActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              isBlurActive
-                  ? '✨ Real-time Background Blur Filter Activated'
-                  : 'Background Blur Filter Turned Off',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ],
+        content: GestureDetector(
+          onTap: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+          child: Row(
+            children: [
+              Icon(
+                isBlurActive ? (isImage ? Icons.wallpaper : Icons.blur_on) : Icons.blur_off,
+                color: isBlurActive ? const Color(0xFF78C02B) : const Color(0xFF94A3B8),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  isBlurActive
+                      ? (isImage
+                          ? '✨ Virtual Clinic Background Activated'
+                          : '✨ Real-time Background Blur Filter Activated')
+                      : 'Virtual Background Filter Turned Off',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+                child: const Icon(Icons.close, color: Colors.white54, size: 18),
+              ),
+            ],
+          ),
         ),
+        action: isBlurActive
+            ? SnackBarAction(
+                label: 'Change',
+                textColor: const Color(0xFF78C02B),
+                onPressed: _showBackgroundThemeSelector,
+              )
+            : null,
         backgroundColor: isBlurActive ? const Color(0xFF1554A6) : const Color(0xFF111C33),
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 2),
+        dismissDirection: DismissDirection.down,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showBackgroundThemeSelector() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Row(
+                children: [
+                  Icon(Icons.wallpaper, color: Colors.indigoAccent),
+                  SizedBox(width: 10),
+                  Text('Virtual Backgrounds', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SizedBox(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildBgOptionTile(
+                      title: 'Modern Clinic Office',
+                      subtitle: 'Bright doctor consultation room with bookshelf & plants',
+                      icon: Icons.local_hospital_outlined,
+                      isSelected: isBlurActive && _currentBgTheme == 'image' && _selectedBgImageUrl.contains('clinic_office'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _toggleBackgroundBlur(mode: 'image', imageUrl: 'backgrounds/clinic_office.jpg');
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _buildBgOptionTile(
+                      title: 'Contemporary Medical Suite',
+                      subtitle: 'Warm healthcare consultation desk with soft daylight',
+                      icon: Icons.apartment_outlined,
+                      isSelected: isBlurActive && _currentBgTheme == 'image' && _selectedBgImageUrl.contains('medical_suite'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _toggleBackgroundBlur(mode: 'image', imageUrl: 'backgrounds/medical_suite.jpg');
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _buildBgOptionTile(
+                      title: 'Real-Time Background Blur',
+                      subtitle: 'Blurs your physical room while keeping you sharp',
+                      icon: Icons.blur_on,
+                      isSelected: isBlurActive && _currentBgTheme == 'blur',
+                      onTap: () {
+                        Navigator.pop(context);
+                        _toggleBackgroundBlur(mode: 'blur');
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _buildBgOptionTile(
+                      title: 'None (Original Camera)',
+                      subtitle: 'Turn off all background effects',
+                      icon: Icons.videocam_outlined,
+                      isSelected: !isBlurActive,
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (isBlurActive) {
+                          _toggleBackgroundBlur();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.white12, height: 1),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _isVideoMirrored
+                                  ? const Color(0xFF78C02B).withOpacity(0.15)
+                                  : Colors.white10,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.flip,
+                              color: _isVideoMirrored ? const Color(0xFF78C02B) : Colors.white70,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mirror My Video',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Flip video horizontally (Selfie / Mirror mode)',
+                                  style: TextStyle(color: Colors.white54, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: _isVideoMirrored,
+                            activeColor: const Color(0xFF78C02B),
+                            onChanged: (val) {
+                              setDialogState(() {
+                                _isVideoMirrored = val;
+                              });
+                              _toggleMirrorVideo(explicitVal: val);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close', style: TextStyle(color: Colors.white70)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildBgOptionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.indigoAccent.withOpacity(0.2) : const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.indigoAccent : Colors.white10,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.indigoAccent : Colors.white10,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle, color: Color(0xFF78C02B), size: 20),
+          ],
+        ),
       ),
     );
   }
@@ -1358,6 +1692,158 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     );
   }
 
+  /// Runs the real progressive liveness verification pipeline in the browser JS engine.
+  /// Stage 1: Face Alignment & Presence Check
+  /// Stage 2: Natural Eye Blink Detection
+  /// Stage 3: Anti-spoof and Device Authenticity Audit
+  Future<void> _runLivenessCheck(void Function(void Function()) setModalState) async {
+    if (!kIsWeb) {
+      setModalState(() {
+        _isVerifyingLiveness = false;
+        _livenessStatus = '⚠️ Liveness check is only available on Web.';
+        _livenessProgress = 0.0;
+      });
+      return;
+    }
+
+    try {
+      // Step 1: Face Alignment & Presence (up to 8 seconds, 250ms polling)
+      setModalState(() {
+        _livenessProgress = 0.15;
+        _livenessStatus = '🎯 Step 1: Center your face in the oval guide...';
+      });
+
+      bool faceAligned = false;
+      final alignStopwatch = Stopwatch()..start();
+      while (alignStopwatch.elapsedMilliseconds < 8000) {
+        final alignRes = js.context.callMethod('evaluateLivenessAction', ['align']);
+        final completed = (alignRes['completed'] == true);
+        final state = alignRes['state'] as String? ?? '';
+        if (completed) {
+          faceAligned = true;
+          setModalState(() {
+            _livenessProgress = 0.40;
+            _livenessStatus = '✅ Step 1 Passed: Face Aligned!';
+          });
+          await Future.delayed(const Duration(milliseconds: 350));
+          break;
+        }
+        if (state == 'ALIGNING') {
+          final frames = alignRes['frames'] as int? ?? 1;
+          setModalState(() {
+            _livenessProgress = 0.15 + (frames * 0.08).clamp(0.0, 0.20);
+            _livenessStatus = '🎯 Hold still in guide... ($frames/2)';
+          });
+        }
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
+      if (!faceAligned) {
+        setModalState(() {
+          _isVerifyingLiveness = false;
+          _livenessProgress = 0.0;
+          _livenessStatus = '❌ Face not aligned. Please ensure good lighting and face the camera.';
+        });
+        return;
+      }
+
+      // Step 2: Natural Eye Blink (up to 10 seconds, 150ms polling)
+      setModalState(() {
+        _livenessProgress = 0.45;
+        _livenessStatus = '👁️ Step 2: Please blink your eyes naturally...';
+      });
+
+      bool blinkDetected = false;
+      final blinkStopwatch = Stopwatch()..start();
+      while (blinkStopwatch.elapsedMilliseconds < 10000) {
+        final blinkRes = js.context.callMethod('evaluateLivenessAction', ['blink']);
+        final completed = (blinkRes['completed'] == true);
+        final state = blinkRes['state'] as String? ?? '';
+        if (completed) {
+          blinkDetected = true;
+          setModalState(() {
+            _livenessProgress = 0.80;
+            _livenessStatus = '✅ Step 2 Passed: Natural Blink Confirmed!';
+          });
+          await Future.delayed(const Duration(milliseconds: 350));
+          break;
+        }
+        if (state == 'EYES_CLOSED') {
+          setModalState(() {
+            _livenessProgress = 0.65;
+            _livenessStatus = '👁️ Eyelids closed detected! Now open your eyes...';
+          });
+        }
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+
+      if (!blinkDetected) {
+        setModalState(() {
+          _isVerifyingLiveness = false;
+          _livenessProgress = 0.0;
+          _livenessStatus = '❌ Blink not detected in time. Please try again.';
+        });
+        return;
+      }
+
+      // Step 3: Anti-spoofing & Device Authenticity Audit
+      setModalState(() {
+        _livenessProgress = 0.90;
+        _livenessStatus = '🛡️ Step 3: Verifying biometric authenticity...';
+      });
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      final audit = js.context.callMethod('runAntiSpoofingAudit', []);
+      final isAuthentic = (audit['isAuthenticDevice'] != false);
+      final userMsg = audit['userFriendlyMessage'] as String? ?? '';
+      final alerts = (audit['securityAlerts'] as List?)?.cast<String>() ?? const <String>[];
+
+      if (!isAuthentic) {
+        setModalState(() {
+          _isVerifyingLiveness = false;
+          _livenessProgress = 0.0;
+          _livenessStatus = '❌ Liveness Failed: ${userMsg.isNotEmpty ? userMsg : (alerts.isNotEmpty ? alerts.join('; ') : 'Presentation attack detected')}';
+        });
+        return;
+      }
+
+      // Success!
+      setModalState(() {
+        _isLivenessChecked = true;
+        _isVerifyingLiveness = false;
+        _livenessProgress = 1.0;
+        _livenessStatus = '✅ Liveness Confirmed! Real live person verified.';
+      });
+    } catch (e) {
+      setModalState(() {
+        _isVerifyingLiveness = false;
+        _livenessProgress = 0.0;
+        _livenessStatus = '❌ Verification error: $e';
+      });
+    }
+  }
+
+  String _describeChallengeState(String state) {
+    switch (state) {
+      case 'COMPLETED':
+        return 'Passed';
+      case 'TURNING_LEFT':
+        return 'Turn head left';
+      case 'TURNING_RIGHT':
+        return 'Turn head right';
+      case 'LOOKING_UP':
+        return 'Look up';
+      case 'SMILING':
+        return 'Smile';
+      case 'ALIGN_FACE':
+        return 'Align face';
+      case 'NO_VIDEO':
+        return 'No camera feed';
+      default:
+        return state;
+    }
+  }
+
   void _showBiometricsModal() {
     showDialog(
       context: context,
@@ -1400,57 +1886,166 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                     
                     if (!_isLivenessChecked) ...[
                       Container(
-                        height: 220,
+                        height: 250,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
+                          color: const Color(0xFF0B132B),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: _isVerifyingLiveness ? Colors.pinkAccent.withOpacity(0.3) : Colors.white10),
+                          border: Border.all(
+                            color: _isLivenessChecked
+                                ? const Color(0xFF10B981)
+                                : (_isVerifyingLiveness ? Colors.pinkAccent : Colors.white10),
+                            width: _isVerifyingLiveness || _isLivenessChecked ? 2 : 1,
+                          ),
                         ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (_isVerifyingLiveness)
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // 1. Live camera video stream if camera is on
+                              if (isVideoOn && _localVideoTrack != null)
+                                Positioned.fill(
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      Offstage(
+                                        offstage: isBlurActive && kIsWeb,
+                                        child: Transform(
+                                          alignment: Alignment.center,
+                                          transform: _isVideoMirrored ? Matrix4.identity() : Matrix4.rotationY(pi),
+                                          child: VideoTrackRenderer(_localVideoTrack!),
+                                        ),
+                                      ),
+                                      if (isBlurActive && kIsWeb)
+                                        const HtmlElementView(viewType: 'virtual-bg-live-canvas'),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Positioned.fill(
+                                  child: Container(
+                                    color: const Color(0xFF0F172A),
+                                    child: const Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.videocam_off_outlined, color: Colors.white24, size: 48),
+                                          SizedBox(height: 8),
+                                          Text('Camera off / feed inactive', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                              // 2. Subtle dark vignette to enhance oval guideline visibility
                               Positioned.fill(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [Colors.transparent, Colors.pinkAccent.withOpacity(0.15), Colors.transparent],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
+                                    gradient: RadialGradient(
+                                      center: Alignment.center,
+                                      radius: 0.90,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.55),
+                                      ],
                                     ),
                                   ),
-                                )
-                                    .animate(onPlay: (c) => c.repeat())
-                                    .slideY(begin: -1, end: 1, duration: 1800.ms),
-                              ),
-                            
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  _isVerifyingLiveness ? Icons.remove_red_eye : Icons.visibility_off_outlined,
-                                  color: _isVerifyingLiveness ? Colors.pinkAccent : Colors.white24,
-                                  size: 48,
-                                ).animate(target: _isVerifyingLiveness ? 1.0 : 0.0)
-                                 .scale(end: const Offset(1.2, 1.2), duration: 600.ms)
-                                 .shake(duration: 800.ms),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _livenessStatus,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                                 ),
-                                const SizedBox(height: 8),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                                  child: LinearProgressIndicator(
-                                    value: _livenessProgress,
-                                    color: Colors.pinkAccent,
-                                    backgroundColor: Colors.white10,
+                              ),
+
+                              // 3. Biometric Face Alignment Oval Guide in Center
+                              Center(
+                                child: Container(
+                                  width: 140,
+                                  height: 180,
+                                  decoration: BoxDecoration(
+                                    borderRadius: const BorderRadius.all(Radius.elliptical(70, 90)),
+                                    border: Border.all(
+                                      color: _isLivenessChecked
+                                          ? const Color(0xFF10B981)
+                                          : (_isVerifyingLiveness ? Colors.pinkAccent : Colors.white38),
+                                      width: 2.5,
+                                    ),
+                                    boxShadow: _isVerifyingLiveness
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.pinkAccent.withOpacity(0.35),
+                                              blurRadius: 18,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                        : null,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+
+                              // 4. Animated Biometric Scanning Bar
+                              if (_isVerifyingLiveness)
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.transparent,
+                                          Colors.pinkAccent.withOpacity(0.25),
+                                          Colors.transparent,
+                                        ],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      ),
+                                    ),
+                                  )
+                                      .animate(onPlay: (c) => c.repeat())
+                                      .slideY(begin: -0.85, end: 0.85, duration: 1600.ms),
+                                ),
+
+                              // 5. Embedded bottom status overlay inside scanner
+                              Positioned(
+                                bottom: 10,
+                                left: 12,
+                                right: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F172A).withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _livenessStatus,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: _livenessStatus.startsWith('❌')
+                                              ? Colors.redAccent
+                                              : (_livenessStatus.startsWith('✅')
+                                                  ? const Color(0xFF10B981)
+                                                  : Colors.white),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      if (_isVerifyingLiveness || _livenessProgress > 0) ...[
+                                        const SizedBox(height: 6),
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: LinearProgressIndicator(
+                                            value: _livenessProgress,
+                                            color: _isLivenessChecked ? const Color(0xFF10B981) : Colors.pinkAccent,
+                                            backgroundColor: Colors.white12,
+                                            minHeight: 4,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -1461,41 +2056,17 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                             _livenessStatus = 'Initializing liveness check...';
                             _livenessProgress = 0.0;
                           });
-                          
-                          await Future.delayed(const Duration(milliseconds: 1000));
-                          setModalState(() {
-                            _livenessStatus = 'Detecting facial positioning...';
-                            _livenessProgress = 0.3;
-                          });
-                          
-                          await Future.delayed(const Duration(milliseconds: 1200));
-                          setModalState(() {
-                            _livenessStatus = 'BLINK YOUR EYES NOW';
-                            _livenessProgress = 0.6;
-                          });
-                          
-                          await Future.delayed(const Duration(milliseconds: 1500));
-                          setModalState(() {
-                            _livenessStatus = 'Blink detected! Checking liveness signature...';
-                            _livenessProgress = 0.9;
-                          });
-                          
-                          await Future.delayed(const Duration(milliseconds: 1000));
-                          setState(() {
-                            _isLivenessChecked = true;
-                          });
-                          setModalState(() {
-                            _isVerifyingLiveness = false;
-                            _livenessStatus = 'Liveness Confirmed!';
-                            _livenessProgress = 1.0;
-                          });
+                          await _runLivenessCheck(setModalState);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.pinkAccent,
                           minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Start Liveness Verification', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          _livenessStatus.startsWith('❌') ? 'Retry Liveness Verification' : 'Start Liveness Verification',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ]
                     else ...[
@@ -1900,6 +2471,339 @@ class _ConsultationRoomState extends State<ConsultationRoom>
     return '$origin/#/?$queryString';
   }
 
+  void _showConsentRequiredWarning(BuildContext ctx) {
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      const SnackBar(
+        content: Text('⚠️ MANDATORY PATIENT CONSENT REQUIRED: You must tick the consent box before sharing invitation links or access codes.'),
+        backgroundColor: Colors.redAccent,
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _openWhatsAppShare(String inviteUrl, String accessCode) {
+    final message = "Join my CallHealth consultation room:\n$inviteUrl\nGuest Access Code: $accessCode";
+    final waUrl = "https://api.whatsapp.com/send?text=${Uri.encodeComponent(message)}";
+    if (kIsWeb) {
+      js.context.callMethod('open', [waUrl, '_blank']);
+    }
+  }
+
+  void _openEmailShare(String inviteUrl, String accessCode) {
+    final subject = Uri.encodeComponent("CallHealth Consultation Invitation");
+    final body = Uri.encodeComponent(
+      "You have been invited to join a secure consultation session on CallHealth.\n\n"
+      "Room: ${widget.roomName.isNotEmpty ? widget.roomName : 'Consultation'}\n"
+      "Guest Access Code: $accessCode\n"
+      "Join Link: $inviteUrl\n\n"
+      "Please join at the scheduled time."
+    );
+    final mailtoUrl = "mailto:?subject=$subject&body=$body";
+    if (kIsWeb) {
+      js.context.callMethod('open', [mailtoUrl, '_self']);
+    }
+  }
+
+  void _openTelegramShare(String inviteUrl, String accessCode) {
+    final tgUrl = "https://t.me/share/url?url=${Uri.encodeComponent(inviteUrl)}&text=${Uri.encodeComponent('Join CallHealth consultation room (Access Code: $accessCode)')}";
+    if (kIsWeb) {
+      js.context.callMethod('open', [tgUrl, '_blank']);
+    }
+  }
+
+  void _openSmsShare(String inviteUrl, String accessCode) {
+    final message = "Join my CallHealth consultation room: $inviteUrl Access Code: $accessCode";
+    final smsUrl = "sms:?body=${Uri.encodeComponent(message)}";
+    if (kIsWeb) {
+      js.context.callMethod('open', [smsUrl, '_self']);
+    }
+  }
+
+  void _triggerWebNativeShare(String inviteUrl, String accessCode) {
+    final shareText = "Join my CallHealth consultation room:\n$inviteUrl\nGuest Access Code: $accessCode";
+    if (kIsWeb) {
+      try {
+        final nav = js.context['navigator'];
+        if (nav != null && nav.hasProperty('share')) {
+          final shareData = js.JsObject.jsify({
+            'title': 'CallHealth Consultation Invitation',
+            'text': shareText,
+            'url': inviteUrl,
+          });
+          nav.callMethod('share', [shareData]);
+          return;
+        }
+      } catch (e) {
+        debugPrint('Web share error: $e');
+      }
+    }
+    Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: $accessCode"));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('✓ Invitation link and access code copied to clipboard!'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Widget _buildShareAppTile({
+    required IconData icon,
+    required Color iconColor,
+    required Color bgColor,
+    required Color borderColor,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: iconColor, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _shareInvitation({
+    required String inviteUrl,
+    required String accessCode,
+    required BuildContext context,
+  }) {
+    _showShareOptionsModal(context: context, inviteUrl: inviteUrl, accessCode: accessCode);
+  }
+
+  void _showShareOptionsModal({
+    required BuildContext context,
+    required String inviteUrl,
+    required String accessCode,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 440),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black87,
+                  blurRadius: 40,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF78C02B).withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.share_rounded, color: Color(0xFF78C02B), size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Share Meeting Link',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Choose an app to share the consultation invitation',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Grid of share options
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.05,
+                  children: [
+                    // WhatsApp
+                    _buildShareAppTile(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      iconColor: const Color(0xFF25D366),
+                      bgColor: const Color(0xFF25D366).withOpacity(0.12),
+                      borderColor: const Color(0xFF25D366).withOpacity(0.35),
+                      label: 'WhatsApp',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openWhatsAppShare(inviteUrl, accessCode);
+                      },
+                    ),
+                    // Email / Mail
+                    _buildShareAppTile(
+                      icon: Icons.mail_outline_rounded,
+                      iconColor: const Color(0xFF38BDF8),
+                      bgColor: const Color(0xFF38BDF8).withOpacity(0.12),
+                      borderColor: const Color(0xFF38BDF8).withOpacity(0.35),
+                      label: 'Email / Mail',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openEmailShare(inviteUrl, accessCode);
+                      },
+                    ),
+                    // Telegram
+                    _buildShareAppTile(
+                      icon: Icons.send_rounded,
+                      iconColor: const Color(0xFF229ED9),
+                      bgColor: const Color(0xFF229ED9).withOpacity(0.12),
+                      borderColor: const Color(0xFF229ED9).withOpacity(0.35),
+                      label: 'Telegram',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openTelegramShare(inviteUrl, accessCode);
+                      },
+                    ),
+                    // SMS / Text
+                    _buildShareAppTile(
+                      icon: Icons.sms_outlined,
+                      iconColor: const Color(0xFFA855F7),
+                      bgColor: const Color(0xFFA855F7).withOpacity(0.12),
+                      borderColor: const Color(0xFFA855F7).withOpacity(0.35),
+                      label: 'SMS / Text',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openSmsShare(inviteUrl, accessCode);
+                      },
+                    ),
+                    // More Apps (System Share)
+                    _buildShareAppTile(
+                      icon: Icons.ios_share_rounded,
+                      iconColor: const Color(0xFF6366F1),
+                      bgColor: const Color(0xFF6366F1).withOpacity(0.12),
+                      borderColor: const Color(0xFF6366F1).withOpacity(0.35),
+                      label: 'More Apps',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _triggerWebNativeShare(inviteUrl, accessCode);
+                      },
+                    ),
+                    // Copy Full Text
+                    _buildShareAppTile(
+                      icon: Icons.copy_rounded,
+                      iconColor: const Color(0xFF78C02B),
+                      bgColor: const Color(0xFF78C02B).withOpacity(0.12),
+                      borderColor: const Color(0xFF78C02B).withOpacity(0.35),
+                      label: 'Copy Full Text',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: $accessCode"));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✓ Invitation link and access code copied to clipboard!'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.link_rounded, color: Colors.indigoAccent, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          inviteUrl,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'monospace'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: inviteUrl));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('✓ Link copied to clipboard!'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Copy URL', style: TextStyle(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showInviteDialog() {
     bool copied = false;
 
@@ -2096,6 +3000,77 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                               ),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          const Divider(color: Colors.white10, height: 16),
+                          Row(
+                            children: [
+                              const Text(
+                                'QUICK SHARE',
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const Spacer(),
+                              // WhatsApp chip
+                              InkWell(
+                                onTap: () {
+                                  if (!dialogConsentAccepted) {
+                                    _showConsentRequiredWarning(context);
+                                    return;
+                                  }
+                                  _openWhatsAppShare(inviteUrl, _roomAccessCode ?? '1111');
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF25D366).withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF25D366).withOpacity(0.3)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 13),
+                                      SizedBox(width: 4),
+                                      Text('WhatsApp', style: TextStyle(color: Color(0xFF25D366), fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Email chip
+                              InkWell(
+                                onTap: () {
+                                  if (!dialogConsentAccepted) {
+                                    _showConsentRequiredWarning(context);
+                                    return;
+                                  }
+                                  _openEmailShare(inviteUrl, _roomAccessCode ?? '1111');
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF38BDF8).withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.3)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.mail_outline_rounded, color: Color(0xFF38BDF8), size: 13),
+                                      SizedBox(width: 4),
+                                      Text('Email', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -2132,17 +3107,40 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           ),
                           child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            if (!dialogConsentAccepted) {
+                              _showConsentRequiredWarning(context);
+                              return;
+                            }
+                            _shareInvitation(
+                              inviteUrl: inviteUrl,
+                              accessCode: _roomAccessCode ?? '1111',
+                              context: context,
+                            );
+                          },
+                          icon: const Icon(Icons.share_rounded, color: Color(0xFF78C02B), size: 16),
+                          label: const Text(
+                            'Share',
+                            style: TextStyle(
+                              color: Color(0xFF78C02B),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0x6678C02B), width: 1.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () {
                             if (!dialogConsentAccepted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('⚠️ MANDATORY PATIENT CONSENT REQUIRED: You must tick the consent box before sharing invitation links or access codes.'),
-                                  backgroundColor: Colors.redAccent,
-                                  duration: Duration(seconds: 4),
-                                ),
-                              );
+                              _showConsentRequiredWarning(context);
                               return;
                             }
                             Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"));
@@ -2158,7 +3156,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           icon: Icon(
                             copied ? Icons.check : Icons.copy,
                             color: Colors.white,
-                            size: 18,
+                            size: 16,
                           ),
                           label: Text(
                             copied ? 'Copied Link + Code!' : 'Copy Invitation',
@@ -2169,7 +3167,7 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: copied ? Colors.green : Colors.indigoAccent,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -2870,68 +3868,102 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           ),
                           const SizedBox(height: 20),
                           
-                          // Copy Button
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF1554A6).withOpacity(0.35),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                if (!_consentAccepted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('⚠️ MANDATORY PATIENT CONSENT REQUIRED: You must tick the consent box before copying or sharing the invite link.'),
-                                      backgroundColor: Colors.redAccent,
-                                      duration: Duration(seconds: 4),
+                          // Share and Copy Action Buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    if (!_consentAccepted) {
+                                      _showConsentRequiredWarning(context);
+                                      return;
+                                    }
+                                    _shareInvitation(
+                                      inviteUrl: inviteUrl,
+                                      accessCode: _roomAccessCode ?? '1111',
+                                      context: context,
+                                    );
+                                  },
+                                  icon: const Icon(Icons.share_rounded, color: Color(0xFF78C02B), size: 16),
+                                  label: const Text(
+                                    'Share',
+                                    style: TextStyle(
+                                      color: Color(0xFF78C02B),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
                                     ),
-                                  );
-                                  return;
-                                }
-                                Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"));
-                                setState(() {
-                                  _inviteLinkCopied = true;
-                                });
-                                // Hide the inline invite component after copying
-                                Future.delayed(const Duration(milliseconds: 500), () {
-                                  if (mounted) {
-                                    setState(() {
-                                      _showInlineInviteCard = false;
-                                    });
-                                  }
-                                });
-                              },
-                              icon: Icon(
-                                _inviteLinkCopied ? Icons.check : Icons.copy,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              label: Text(
-                                _inviteLinkCopied ? 'Copied Link!' : 'Copy Invitation Link',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Color(0x6678C02B), width: 1.5),
+                                    minimumSize: const Size.fromHeight(46),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _inviteLinkCopied ? Colors.green : Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                minimumSize: const Size.fromHeight(46),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                flex: 3,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF1554A6), Color(0xFF78C02B)],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF1554A6).withOpacity(0.35),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      if (!_consentAccepted) {
+                                        _showConsentRequiredWarning(context);
+                                        return;
+                                      }
+                                      Clipboard.setData(ClipboardData(text: "$inviteUrl\nAccess Code: ${_roomAccessCode ?? '1111'}"));
+                                      setState(() {
+                                        _inviteLinkCopied = true;
+                                      });
+                                      // Hide the inline invite component after copying
+                                      Future.delayed(const Duration(milliseconds: 500), () {
+                                        if (mounted) {
+                                          setState(() {
+                                            _showInlineInviteCard = false;
+                                          });
+                                        }
+                                      });
+                                    },
+                                    icon: Icon(
+                                      _inviteLinkCopied ? Icons.check : Icons.copy,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      _inviteLinkCopied ? 'Copied Link!' : 'Copy Invitation Link',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _inviteLinkCopied ? Colors.green : Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      minimumSize: const Size.fromHeight(46),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -3034,51 +4066,72 @@ class _ConsultationRoomState extends State<ConsultationRoom>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: (isVideoOn && _localVideoTrack != null)
-                        ? VideoTrackRenderer(_localVideoTrack!)
-                        : Container(
-                            color: const Color(0xFF1E293B),
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _mediaErrorMessage ?? (isVideoOn ? 'No Camera Device Found\n(VM / Permission Blocked)' : 'Camera Off'),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.white54, fontSize: widget.isPip ? 8 : (isMobile ? 9 : 10)),
-                                    ),
-                                    if (_mediaErrorMessage != null) ...[
-                                      const SizedBox(height: 6),
-                                      GestureDetector(
-                                        onTap: _initLocalCamera,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.indigoAccent,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            'Retry',
-                                            style: TextStyle(
-                                              fontSize: widget.isPip ? 8 : (isMobile ? 9 : 10),
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
+                  // 1. Live camera video track (Offstage when Virtual BG is active so WebRTC camera track stays running in DOM)
+                  if (isVideoOn && _localVideoTrack != null)
+                    Offstage(
+                      offstage: isBlurActive && kIsWeb,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Transform(
+                          alignment: Alignment.center,
+                          transform: _isVideoMirrored ? Matrix4.identity() : Matrix4.rotationY(pi),
+                          child: VideoTrackRenderer(_localVideoTrack!),
+                        ),
+                      ),
+                    ),
+
+                  // 2. Real-time Virtual Background Live Canvas (renders cleanly segmented person + clinic background)
+                  if (isBlurActive && kIsWeb && isVideoOn && _localVideoTrack != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: const HtmlElementView(viewType: 'virtual-bg-live-canvas'),
+                    ),
+
+                  // 3. Camera Off placeholder if camera is off
+                  if (!isVideoOn || _localVideoTrack == null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        color: const Color(0xFF1E293B),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _mediaErrorMessage ?? (isVideoOn ? 'No Camera Device Found\n(VM / Permission Blocked)' : 'Camera Off'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white54, fontSize: widget.isPip ? 8 : (isMobile ? 9 : 10)),
+                                ),
+                                if (_mediaErrorMessage != null) ...[
+                                  const SizedBox(height: 6),
+                                  GestureDetector(
+                                    onTap: _initLocalCamera,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.indigoAccent,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Retry',
+                                        style: TextStyle(
+                                          fontSize: widget.isPip ? 8 : (isMobile ? 9 : 10),
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                    ],
-                                  ],
-                                ),
-                              ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                  ),
+                        ),
+                      ),
+                    ),
 
                   // Blur active indicator badge
                   if (isBlurActive)
@@ -3100,10 +4153,14 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.blur_on, color: Colors.white, size: 10),
+                            Icon(
+                              _currentBgTheme == 'image' ? Icons.wallpaper : Icons.blur_on,
+                              color: Colors.white,
+                              size: 10,
+                            ),
                             const SizedBox(width: 3),
                             Text(
-                              'BG Blur',
+                              _currentBgTheme == 'image' ? 'Virtual BG' : 'BG Blur',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: widget.isPip ? 7 : 9,
@@ -3111,6 +4168,49 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+
+                  // Interactive Mirror toggle button on video tile
+                  if (isVideoOn && _localVideoTrack != null)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Tooltip(
+                        message: _isVideoMirrored ? 'Switch to Normal Camera View' : 'Switch to Mirror View',
+                        child: GestureDetector(
+                          onTap: _toggleMirrorVideo,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A).withOpacity(0.85),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _isVideoMirrored ? const Color(0xFF78C02B) : Colors.white24,
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.flip,
+                                  color: _isVideoMirrored ? const Color(0xFF78C02B) : Colors.white70,
+                                  size: 10,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  _isVideoMirrored ? 'Mirrored' : 'Normal',
+                                  style: TextStyle(
+                                    color: _isVideoMirrored ? const Color(0xFF78C02B) : Colors.white70,
+                                    fontSize: widget.isPip ? 7 : 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -3411,8 +4511,10 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                         ),
                         const SizedBox(width: 10),
                         _buildControlButton(
-                          icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
-                          label: widget.isPip ? null : 'Blur',
+                          icon: isBlurActive
+                              ? (_currentBgTheme == 'image' ? Icons.wallpaper : Icons.blur_on)
+                              : Icons.wallpaper_outlined,
+                          label: widget.isPip ? null : (_currentBgTheme == 'image' ? 'Virtual BG' : 'Blur'),
                           isActive: isBlurActive,
                           onTap: _toggleBackgroundBlur,
                         ),
@@ -3558,14 +4660,14 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                         setState(() => isWhiteboardOpen = !isWhiteboardOpen);
                       },
                     ),
-                    // Blur
+                    // Virtual Backgrounds
                     _buildSheetOption(
-                      icon: isBlurActive ? Icons.blur_on : Icons.blur_off,
-                      label: 'Blur',
+                      icon: isBlurActive ? Icons.wallpaper : Icons.wallpaper_outlined,
+                      label: 'Virtual BG',
                       isActive: isBlurActive,
                       onTap: () {
                         Navigator.pop(context);
-                        _toggleBackgroundBlur();
+                        _showBackgroundThemeSelector();
                       },
                     ),
                     // Noise Shield
@@ -3588,6 +4690,16 @@ class _ConsultationRoomState extends State<ConsultationRoom>
                           _showInviteDialog();
                         },
                       ),
+                    // Mirror Mode
+                    _buildSheetOption(
+                      icon: Icons.flip,
+                      label: _isVideoMirrored ? 'Mirrored' : 'Normal',
+                      isActive: _isVideoMirrored,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _toggleMirrorVideo();
+                      },
+                    ),
                     // Supabase Log
                     _buildSheetOption(
                       icon: Icons.storage_outlined,

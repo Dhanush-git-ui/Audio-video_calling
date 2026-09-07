@@ -14,6 +14,15 @@ class ConsultationView extends StatefulWidget {
   final String publicUrl;
   final bool isDoctor;
   final bool isGuest;
+  final String appointmentId;
+  final String patientName;
+  final String patientId;
+  final String doctorName;
+  final String doctorId;
+  final String specialty;
+  final String symptoms;
+  final String appointmentDate;
+  final String appointmentTime;
   
   const ConsultationView({
     super.key,
@@ -27,6 +36,15 @@ class ConsultationView extends StatefulWidget {
     this.publicUrl = '',
     this.isDoctor = false,
     this.isGuest = false,
+    this.appointmentId = '',
+    this.patientName = '',
+    this.patientId = '',
+    this.doctorName = '',
+    this.doctorId = '',
+    this.specialty = '',
+    this.symptoms = '',
+    this.appointmentDate = '',
+    this.appointmentTime = '',
   });
 
 
@@ -144,7 +162,7 @@ class _ConsultationViewState extends State<ConsultationView> {
                   boxShadow: isVideoPip ? [const BoxShadow(color: Colors.black54, blurRadius: 20)] : [],
                 ),
                 clipBehavior: Clip.antiAlias,
-                 child: ConsultationRoom(
+                  child: ConsultationRoom(
                   url: widget.url,
                   token: widget.token,
                   roomName: widget.room,
@@ -157,6 +175,15 @@ class _ConsultationViewState extends State<ConsultationView> {
                   onExpand: () => setState(() => viewMode = 'video'),
                   isDoctor: widget.isDoctor,
                   isGuest: widget.isGuest,
+                  appointmentId: widget.appointmentId,
+                  patientName: widget.patientName,
+                  patientId: widget.patientId,
+                  doctorName: widget.doctorName,
+                  doctorId: widget.doctorId,
+                  specialty: widget.specialty,
+                  symptoms: widget.symptoms,
+                  appointmentDate: widget.appointmentDate,
+                  appointmentTime: widget.appointmentTime,
                 ),
               ),
             ),
@@ -179,7 +206,18 @@ class _ConsultationViewState extends State<ConsultationView> {
                 clipBehavior: Clip.antiAlias,
                 child: isFormPip 
                   ? _buildMinimizedForm() 
-                  : (widget.isGuest ? _buildGuestClinicalPanelRestricted() : const ClinicalPanel()),
+                  : (widget.isGuest
+                      ? _buildGuestClinicalPanelRestricted()
+                      : ClinicalPanel(
+                          appointmentId: widget.appointmentId,
+                          patientName: widget.patientName,
+                          patientId: widget.patientId,
+                          doctorName: widget.doctorName,
+                          specialty: widget.specialty,
+                          symptoms: widget.symptoms,
+                          appointmentDate: widget.appointmentDate,
+                          appointmentTime: widget.appointmentTime,
+                        )),
               ),
             ),
 

@@ -7,6 +7,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import roomsRoutes from './modules/rooms/rooms.routes.js';
 import biometricRoutes from './routes/biometric.routes.js';
 import scoringRoutes from './routes/scoring.routes.js';
+import consultationRoutes from './routes/consultation.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomsRoutes);
 app.use('/api/biometric', biometricRoutes);
 app.use('/api/scoring', scoringRoutes);
+app.use('/api/consultation', consultationRoutes);
 
 // Add getToken alias for Flutter shared_state.dart compatibility
 app.get('/api/getToken', (req, res) => {
